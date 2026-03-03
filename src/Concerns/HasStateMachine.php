@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maquina\Concerns;
 
 use BackedEnum;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Maquina\Events\StateTransitioned;
@@ -179,4 +180,24 @@ trait HasStateMachine
      * Override in models to implement custom post-transition logic
      */
     protected function afterTransition(BackedEnum $oldState, BackedEnum $newState): void {}
+
+    /**
+     * @param  Builder<static>  $query
+     */
+    public function scopeWhereState(Builder $query, BackedEnum ...$states): void
+    {
+        $values = array_map(fn (BackedEnum $state): int|string => $state->value, $states);
+
+        $query->whereIn($this->getStateColumn(), $values);
+    }
+
+    /**
+     * @param  Builder<static>  $query
+     */
+    public function scopeWhereNotState(Builder $query, BackedEnum ...$states): void
+    {
+        $values = array_map(fn (BackedEnum $state): int|string => $state->value, $states);
+
+        $query->whereNotIn($this->getStateColumn(), $values);
+    }
 }
