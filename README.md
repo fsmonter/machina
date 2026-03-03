@@ -1,6 +1,6 @@
 # Machina
 
-A fluent enum-powered state machine implementation.
+Fluent enum-powered state machine implementation.
 
 ## Installation
 
