@@ -4,14 +4,17 @@ declare(strict_types=1);
 
 namespace Maquina;
 
+use BackedEnum;
+
 /**
  * Compiled state machine for efficient transition lookups
  */
 class StateMachine
 {
     /**
-     * @param  array<string, array<int, \BackedEnum>>  $transitions
-     * @param  array<int, \BackedEnum>  $finalStates
+     * @param  class-string<BackedEnum>  $enumClass
+     * @param  array<int|string, list<BackedEnum>>  $transitions
+     * @param  list<BackedEnum>  $finalStates
      */
     public function __construct(
         private readonly string $enumClass,
@@ -22,19 +25,17 @@ class StateMachine
     /**
      * Check if a transition from source to target state is valid
      */
-    public function canTransition(\BackedEnum $from, \BackedEnum $target): bool
+    public function canTransition(BackedEnum $from, BackedEnum $target): bool
     {
-        $allowedTransitions = $this->getTransitions($from);
-
-        return in_array($target, $allowedTransitions, true);
+        return in_array($target, $this->getTransitions($from), true);
     }
 
     /**
      * Get all allowed transitions from the given state
      *
-     * @return array<int, \BackedEnum>
+     * @return list<BackedEnum>
      */
-    public function getTransitions(\BackedEnum $from): array
+    public function getTransitions(BackedEnum $from): array
     {
         return $this->transitions[$from->value] ?? [];
     }
@@ -42,7 +43,7 @@ class StateMachine
     /**
      * Check if the given state is final (has no outgoing transitions)
      */
-    public function isFinal(\BackedEnum $state): bool
+    public function isFinal(BackedEnum $state): bool
     {
         if (! empty($this->finalStates)) {
             return in_array($state, $this->finalStates, true);
@@ -54,16 +55,16 @@ class StateMachine
     /**
      * Get all states that can transition to the target state
      *
-     * @return array<int, \BackedEnum>
+     * @return list<BackedEnum>
      */
-    public function getSourceStates(\BackedEnum $target): array
+    public function getSourceStates(BackedEnum $target): array
     {
+        $enumClass = $this->enumClass;
         $sources = [];
 
         foreach ($this->transitions as $sourceValue => $transitions) {
             if (in_array($target, $transitions, true)) {
-                $sourceEnum = $this->enumClass::from($sourceValue);
-                $sources[] = $sourceEnum;
+                $sources[] = $enumClass::from($sourceValue);
             }
         }
 
@@ -73,14 +74,15 @@ class StateMachine
     /**
      * Get all states defined in this state machine
      *
-     * @return array<int, \BackedEnum>
+     * @return list<BackedEnum>
      */
     public function getAllStates(): array
     {
+        $enumClass = $this->enumClass;
         $states = [];
 
         foreach (array_keys($this->transitions) as $value) {
-            $states[] = $this->enumClass::from($value);
+            $states[] = $enumClass::from($value);
         }
 
         foreach ($this->transitions as $transitions) {
@@ -97,45 +99,47 @@ class StateMachine
     /**
      * Converts the state machine definition as an array (useful for caching)
      *
-     * @return array{enum_class: string, transitions: array<int|string, array<int, int|string>>, final_states: array<int, int|string>}
+     * @return array{enum_class: class-string<BackedEnum>, transitions: array<int|string, list<int|string>>, final_states: list<int|string>}
      */
     public function toArray(): array
     {
         $export = [];
 
         foreach ($this->transitions as $sourceValue => $transitions) {
-            $export[$sourceValue] = array_map(fn ($state) => $state->value, $transitions);
+            $export[$sourceValue] = array_map(fn (BackedEnum $state): int|string => $state->value, $transitions);
         }
 
         return [
             'enum_class' => $this->enumClass,
             'transitions' => $export,
-            'final_states' => array_map(fn ($state) => $state->value, $this->finalStates),
+            'final_states' => array_map(fn (BackedEnum $state): int|string => $state->value, $this->finalStates),
         ];
     }
 
     /**
      * Create a StateMachine from exported array data
      *
-     * @param  array{enum_class: string, transitions: array<int|string, array<int, int|string>>, final_states?: array<int, int|string>}  $data
+     * @param  array{enum_class: class-string<BackedEnum>, transitions: array<int|string, list<int|string>>, final_states?: list<int|string>}  $data
      */
     public static function fromArray(array $data): self
     {
         $enumClass = $data['enum_class'];
         $castValue = self::valueCasterFor($enumClass);
+        /** @var array<int|string, list<BackedEnum>> $transitions */
         $transitions = [];
 
         foreach ($data['transitions'] as $sourceValue => $targetValues) {
             $transitions[$sourceValue] = array_map(
-                fn ($value) => $enumClass::from($castValue($value)),
+                fn (int|string $value): BackedEnum => $enumClass::from($castValue($value)),
                 $targetValues
             );
         }
 
+        /** @var list<BackedEnum> $finalStates */
         $finalStates = [];
         if (isset($data['final_states'])) {
             $finalStates = array_map(
-                fn ($value) => $enumClass::from($castValue($value)),
+                fn (int|string $value): BackedEnum => $enumClass::from($castValue($value)),
                 $data['final_states']
             );
         }
@@ -144,7 +148,8 @@ class StateMachine
     }
 
     /**
-     * @return \Closure(mixed): (int|string)
+     * @param  class-string<BackedEnum>  $enumClass
+     * @return \Closure(int|string): (int|string)
      */
     private static function valueCasterFor(string $enumClass): \Closure
     {
@@ -152,7 +157,7 @@ class StateMachine
         $backingType = (string) $reflection->getBackingType();
 
         return $backingType === 'int'
-            ? fn ($value) => (int) $value
-            : fn ($value) => (string) $value;
+            ? fn (int|string $value): int => (int) $value
+            : fn (int|string $value): string => (string) $value;
     }
 }

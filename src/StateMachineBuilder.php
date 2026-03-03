@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Maquina;
 
+use BackedEnum;
 use InvalidArgumentException;
 
 /**
@@ -19,23 +20,24 @@ use InvalidArgumentException;
 class StateMachineBuilder
 {
     /**
-     * @var array<int|string, array<int, \BackedEnum>>
+     * @var array<int|string, list<BackedEnum>>
      */
     private array $transitions = [];
 
     /**
-     * @var array<int, \BackedEnum>
+     * @var list<BackedEnum>
      */
     private array $finalStates = [];
 
-    private ?\BackedEnum $currentFromState = null;
+    private ?BackedEnum $currentFromState = null;
 
+    /** @var class-string<BackedEnum>|null */
     private ?string $enumClass = null;
 
     /**
      * Define the source state for transitions
      */
-    public function from(\BackedEnum $state): self
+    public function from(BackedEnum $state): self
     {
         $this->trackEnumClass($state);
         $this->currentFromState = $state;
@@ -50,17 +52,19 @@ class StateMachineBuilder
     /**
      * Define target states for the current source state
      */
-    public function to(\BackedEnum ...$states): self
+    public function to(BackedEnum ...$states): self
     {
-        if ($this->currentFromState === null) {
+        $from = $this->currentFromState;
+
+        if ($from === null) {
             throw new InvalidArgumentException('Must call from() before to()');
         }
 
         foreach ($states as $state) {
             $this->trackEnumClass($state);
 
-            if (! in_array($state, $this->transitions[$this->currentFromState->value], true)) {
-                $this->transitions[$this->currentFromState->value][] = $state;
+            if (! in_array($state, $this->transitions[$from->value], true)) {
+                $this->transitions[$from->value][] = $state;
             }
         }
 
@@ -71,7 +75,7 @@ class StateMachineBuilder
      * Mark states as final (no outgoing transitions allowed)
      * Optional: If not called, states with no outgoing transitions are auto-detected as final
      */
-    public function final(\BackedEnum ...$states): self
+    public function final(BackedEnum ...$states): self
     {
         foreach ($states as $state) {
             $this->trackEnumClass($state);
@@ -88,6 +92,8 @@ class StateMachineBuilder
 
     /**
      * Build the final StateMachine instance
+     *
+     * @param  class-string<BackedEnum>|null  $enumClass
      */
     public function build(?string $enumClass = null): StateMachine
     {
@@ -106,7 +112,7 @@ class StateMachineBuilder
         return new StateMachine($resolvedClass, $this->transitions, $this->finalStates);
     }
 
-    private function trackEnumClass(\BackedEnum $state): void
+    private function trackEnumClass(BackedEnum $state): void
     {
         $class = $state::class;
 
