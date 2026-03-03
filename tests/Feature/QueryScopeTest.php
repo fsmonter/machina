@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Tests\Models\TestModel;
+use Workbench\App\Models\TestModel;
 use Tests\TestState;
 
 beforeEach(function () {
