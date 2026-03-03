@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace Maquina\Concerns;
+namespace Machina\Concerns;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
-use Maquina\Events\StateTransitioned;
-use Maquina\Exceptions\InvalidStateTransitionException;
-use Maquina\StateMachine;
-use Maquina\StateMachineBuilder;
+use Machina\Events\StateTransitioned;
+use Machina\Exceptions\InvalidStateTransitionException;
+use Machina\StateMachine;
+use Machina\StateMachineBuilder;
 
 trait HasStateMachine
 {

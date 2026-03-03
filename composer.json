@@ -1,5 +1,5 @@
 {
-    "name": "fsmonter/maquina",
+    "name": "fsmonter/machina",
     "description": "A fluent state machine library for Laravel Eloquent models",
     "keywords": ["laravel", "state-machine", "eloquent", "workflow"],
     "license": "MIT",
@@ -17,7 +17,7 @@
     },
     "autoload": {
         "psr-4": {
-            "Maquina\\": "src/"
+            "Machina\\": "src/"
         },
         "files": [
             "helpers.php"
@@ -40,7 +40,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Maquina\\MaquinaServiceProvider"
+                "Machina\\MachinaServiceProvider"
             ]
         }
     },

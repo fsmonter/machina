@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Maquina\StateMachine;
-use Maquina\StateMachineBuilder;
+use Machina\StateMachine;
+use Machina\StateMachineBuilder;
 use Tests\TestState;
 
 it('can build a simple state machine', function () {

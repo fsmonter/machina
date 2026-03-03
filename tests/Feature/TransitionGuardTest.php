@@ -3,9 +3,9 @@
 declare(strict_types=1);
 
 use Illuminate\Database\Eloquent\Model;
-use Maquina\Concerns\HasStateMachine;
-use Maquina\Exceptions\InvalidStateTransitionException;
-use Maquina\StateMachineBuilder;
+use Machina\Concerns\HasStateMachine;
+use Machina\Exceptions\InvalidStateTransitionException;
+use Machina\StateMachineBuilder;
 use Tests\TestState;
 
 it('allows transition when guard passes', function () {
@@ -56,7 +56,7 @@ function createGuardedModel(int $total): Model
     $model = new class (['state' => TestState::Pending, 'total' => $total]) extends \Workbench\App\Models\TestModel {
         protected function defineStateMachine(): StateMachineBuilder
         {
-            return machine()
+            return machina()
                 ->from(TestState::Pending)->to(TestState::Processing)
                     ->guard(fn (Model $model) => $model->total > 0)
                 ->from(TestState::Pending)->to(TestState::Cancelled)
@@ -74,7 +74,7 @@ function createMultiGuardModel(int $total, bool $approved): Model
     $model = new class (['state' => TestState::Pending, 'total' => $total, 'approved' => $approved]) extends \Workbench\App\Models\TestModel {
         protected function defineStateMachine(): StateMachineBuilder
         {
-            return machine()
+            return machina()
                 ->from(TestState::Pending)->to(TestState::Processing)
                     ->guard(fn (Model $model) => $model->total > 0)
                     ->guard(fn (Model $model) => $model->approved === true)

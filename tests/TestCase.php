@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Tests;
 
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Maquina\MaquinaServiceProvider;
+use Machina\MachinaServiceProvider;
 use Orchestra\Testbench\Concerns\WithWorkbench;
 use Orchestra\Testbench\TestCase as Orchestra;
 
@@ -17,7 +17,7 @@ abstract class TestCase extends Orchestra
     protected function getPackageProviders($app): array
     {
         return [
-            MaquinaServiceProvider::class,
+            MachinaServiceProvider::class,
         ];
     }
 }

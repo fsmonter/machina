@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use Maquina\StateMachine;
-use Maquina\StateMachineBuilder;
+use Machina\StateMachine;
+use Machina\StateMachineBuilder;
 use Tests\TestIntState;
 
 it('supports integer-backed enums via builder', function () {

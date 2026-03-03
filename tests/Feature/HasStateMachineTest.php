@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
-use Maquina\Events\StateTransitioned;
-use Maquina\Exceptions\InvalidStateTransitionException;
+use Machina\Events\StateTransitioned;
+use Machina\Exceptions\InvalidStateTransitionException;
 use Workbench\App\Models\TestModel;
 use Tests\TestState;
 
@@ -138,7 +138,7 @@ it('transitions through a complete workflow', function () {
 it('exposes the state machine instance', function () {
     $sm = $this->model->getStateMachine();
 
-    expect($sm)->toBeInstanceOf(\Maquina\StateMachine::class);
+    expect($sm)->toBeInstanceOf(\Machina\StateMachine::class);
     expect($sm->canTransition(TestState::Pending, TestState::Processing))->toBeTrue();
 });
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Maquina\StateMachine;
+use Machina\StateMachine;
 use Tests\TestState;
 
 beforeEach(function () {

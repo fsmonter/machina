@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Maquina\Exceptions\InvalidStateTransitionException;
+use Machina\Exceptions\InvalidStateTransitionException;
 
 it('can be instantiated', function () {
     $exception = new InvalidStateTransitionException('Test message');

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Maquina;
+namespace Machina;
 
 use Illuminate\Support\ServiceProvider;
 
-class MaquinaServiceProvider extends ServiceProvider
+class MachinaServiceProvider extends ServiceProvider
 {
     public function register(): void
     {

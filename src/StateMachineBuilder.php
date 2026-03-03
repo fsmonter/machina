@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Maquina;
+namespace Machina;
 
 use BackedEnum;
 use Closure;
@@ -12,7 +12,7 @@ use InvalidArgumentException;
  * Fluent builder for creating state machine definitions
  *
  * Usage:
- * machine()
+ * machina()
  *     ->from(MyEnum::Pending)->to(MyEnum::Processing, MyEnum::Complete)
  *     ->from(MyEnum::Processing)->to(MyEnum::Complete, MyEnum::Failed)
  *     ->final(MyEnum::Complete, MyEnum::Failed)

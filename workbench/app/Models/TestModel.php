@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Workbench\App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Maquina\Concerns\HasStateMachine;
-use Maquina\StateMachineBuilder;
+use Machina\Concerns\HasStateMachine;
+use Machina\StateMachineBuilder;
 use Tests\TestState;
 
 class TestModel extends Model
@@ -23,7 +23,7 @@ class TestModel extends Model
 
     protected function defineStateMachine(): StateMachineBuilder
     {
-        return machine()
+        return machina()
             ->from(TestState::Pending)->to(TestState::Processing, TestState::Cancelled)
             ->from(TestState::Processing)->to(TestState::Completed, TestState::Failed)
             ->final(TestState::Completed, TestState::Failed, TestState::Cancelled);

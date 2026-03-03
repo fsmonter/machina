@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use Maquina\StateMachineBuilder;
+use Machina\StateMachineBuilder;
 use Tests\TestIntState;
 use Tests\TestState;
 

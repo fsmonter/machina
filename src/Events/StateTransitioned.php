@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Maquina\Events;
+namespace Machina\Events;
 
 use BackedEnum;
 use Illuminate\Database\Eloquent\Model;

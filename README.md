@@ -1,11 +1,11 @@
-# Maquina
+# Machina
 
 A simple fluent state machine implementation.
 
 ## Installation
 
 ```bash
-composer require fsmonter/maquina
+composer require fsmonter/machina
 ```
 
 ## Quick Start
@@ -26,8 +26,8 @@ enum OrderState: string
 ### 2. Add the trait to your model
 
 ```php
-use Maquina\Concerns\HasStateMachine;
-use Maquina\StateMachineBuilder;
+use Machina\Concerns\HasStateMachine;
+use Machina\StateMachineBuilder;
 
 class Order extends Model
 {
@@ -39,7 +39,7 @@ class Order extends Model
 
     protected function defineStateMachine(): StateMachineBuilder
     {
-        return machine()
+        return machina()
             ->from(OrderState::Pending)->to(OrderState::Processing, OrderState::Cancelled)
             ->from(OrderState::Processing)->to(OrderState::Completed, OrderState::Failed)
             ->final(OrderState::Completed, OrderState::Failed, OrderState::Cancelled);
@@ -61,10 +61,10 @@ $order->isInFinalState(); // true
 
 ## Builder API
 
-The `machine()` helper returns a fluent `StateMachineBuilder`:
+The `machina()` helper returns a fluent `StateMachineBuilder`:
 
 ```php
-machine()
+machina()
     ->from(State::Draft)->to(State::Review)
     ->from(State::Review)->to(State::Published, State::Draft)
     ->final(State::Published)
@@ -86,7 +86,7 @@ Guards add conditions that must pass for a transition to be allowed:
 ```php
 protected function defineStateMachine(): StateMachineBuilder
 {
-    return machine()
+    return machina()
         ->from(OrderState::Pending)->to(OrderState::Processing)
             ->guard(fn (Order $model) => $model->total > 0)
             ->guard(fn (Order $model) => $model->items()->exists())
@@ -117,7 +117,7 @@ Order::whereNotState(OrderState::Cancelled, OrderState::Failed)->get();
 A `StateTransitioned` event fires after every successful transition:
 
 ```php
-use Maquina\Events\StateTransitioned;
+use Machina\Events\StateTransitioned;
 
 class HandleOrderTransition
 {
