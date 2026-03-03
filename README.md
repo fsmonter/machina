@@ -1,14 +1,12 @@
 # Maquina
 
-A fluent state machine library for Laravel Eloquent models.
+A simple fluent state machine implementation.
 
 ## Installation
 
 ```bash
 composer require fsmonter/maquina
 ```
-
-The service provider is auto-discovered. No manual registration needed.
 
 ## Quick Start
 
