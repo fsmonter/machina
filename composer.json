@@ -1,7 +1,7 @@
 {
     "name": "fsmonter/machina",
-    "description": "A fluent state machine library for Laravel Eloquent models",
-    "keywords": ["laravel", "state-machine", "eloquent", "workflow"],
+    "description": "A fluent enum-powered state machine implementation",
+    "keywords": ["laravel", "state-machine", "eloquent", "workflow", "enum", "php-enum"],
     "license": "MIT",
     "require": {
         "php": "^8.1",
