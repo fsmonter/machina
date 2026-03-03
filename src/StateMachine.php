@@ -97,36 +97,37 @@ class StateMachine
     /**
      * Converts the state machine definition as an array (useful for caching)
      *
-     * @return array{enum_class: string, transitions: array<string, array<int, string>>, final_states: array<int, string>}
+     * @return array{enum_class: string, transitions: array<int|string, array<int, int|string>>, final_states: array<int, int|string>}
      */
     public function toArray(): array
     {
         $export = [];
 
         foreach ($this->transitions as $sourceValue => $transitions) {
-            $export[(string) $sourceValue] = array_map(fn ($state) => (string) $state->value, $transitions);
+            $export[$sourceValue] = array_map(fn ($state) => $state->value, $transitions);
         }
 
         return [
             'enum_class' => $this->enumClass,
             'transitions' => $export,
-            'final_states' => array_map(fn ($state) => (string) $state->value, $this->finalStates),
+            'final_states' => array_map(fn ($state) => $state->value, $this->finalStates),
         ];
     }
 
     /**
      * Create a StateMachine from exported array data
      *
-     * @param  array{enum_class: string, transitions: array<string, array<int, string>>, final_states?: array<int, string>}  $data
+     * @param  array{enum_class: string, transitions: array<int|string, array<int, int|string>>, final_states?: array<int, int|string>}  $data
      */
     public static function fromArray(array $data): self
     {
         $enumClass = $data['enum_class'];
+        $castValue = self::valueCasterFor($enumClass);
         $transitions = [];
 
         foreach ($data['transitions'] as $sourceValue => $targetValues) {
             $transitions[$sourceValue] = array_map(
-                fn ($value) => $enumClass::from($value),
+                fn ($value) => $enumClass::from($castValue($value)),
                 $targetValues
             );
         }
@@ -134,11 +135,24 @@ class StateMachine
         $finalStates = [];
         if (isset($data['final_states'])) {
             $finalStates = array_map(
-                fn ($value) => $enumClass::from($value),
+                fn ($value) => $enumClass::from($castValue($value)),
                 $data['final_states']
             );
         }
 
         return new self($enumClass, $transitions, $finalStates);
+    }
+
+    /**
+     * @return \Closure(mixed): (int|string)
+     */
+    private static function valueCasterFor(string $enumClass): \Closure
+    {
+        $reflection = new \ReflectionEnum($enumClass);
+        $backingType = (string) $reflection->getBackingType();
+
+        return $backingType === 'int'
+            ? fn ($value) => (int) $value
+            : fn ($value) => (string) $value;
     }
 }

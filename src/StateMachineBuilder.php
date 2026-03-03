@@ -30,11 +30,14 @@ class StateMachineBuilder
 
     private ?\BackedEnum $currentFromState = null;
 
+    private ?string $enumClass = null;
+
     /**
      * Define the source state for transitions
      */
     public function from(\BackedEnum $state): self
     {
+        $this->trackEnumClass($state);
         $this->currentFromState = $state;
 
         if (! isset($this->transitions[$state->value])) {
@@ -54,6 +57,8 @@ class StateMachineBuilder
         }
 
         foreach ($states as $state) {
+            $this->trackEnumClass($state);
+
             if (! in_array($state, $this->transitions[$this->currentFromState->value], true)) {
                 $this->transitions[$this->currentFromState->value][] = $state;
             }
@@ -69,11 +74,12 @@ class StateMachineBuilder
     public function final(\BackedEnum ...$states): self
     {
         foreach ($states as $state) {
+            $this->trackEnumClass($state);
+
             if (! in_array($state, $this->finalStates, true)) {
                 $this->finalStates[] = $state;
             }
 
-            // Ensure final states have empty transition arrays
             $this->transitions[$state->value] = [];
         }
 
@@ -83,14 +89,37 @@ class StateMachineBuilder
     /**
      * Build the final StateMachine instance
      */
-    public function build(string $enumClass): StateMachine
+    public function build(?string $enumClass = null): StateMachine
     {
-        // Convert int keys to string keys for consistent typing
-        $normalizedTransitions = [];
-        foreach ($this->transitions as $key => $value) {
-            $normalizedTransitions[(string) $key] = $value;
+        $resolvedClass = $enumClass ?? $this->enumClass;
+
+        if ($resolvedClass === null) {
+            throw new InvalidArgumentException('Enum class must be provided via build() or inferred from states');
         }
 
-        return new StateMachine($enumClass, $normalizedTransitions, $this->finalStates);
+        if ($enumClass !== null && $this->enumClass !== null && $enumClass !== $this->enumClass) {
+            throw new InvalidArgumentException(
+                "Enum class mismatch: build() received {$enumClass} but states use {$this->enumClass}"
+            );
+        }
+
+        return new StateMachine($resolvedClass, $this->transitions, $this->finalStates);
+    }
+
+    private function trackEnumClass(\BackedEnum $state): void
+    {
+        $class = $state::class;
+
+        if ($this->enumClass === null) {
+            $this->enumClass = $class;
+
+            return;
+        }
+
+        if ($this->enumClass !== $class) {
+            throw new InvalidArgumentException(
+                "All states must be the same enum type. Expected {$this->enumClass}, got {$class}"
+            );
+        }
     }
 }
