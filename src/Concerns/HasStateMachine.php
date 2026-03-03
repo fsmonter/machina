@@ -33,6 +33,8 @@ trait HasStateMachine
 
     /**
      * Get the enum class for the state attribute
+     *
+     * @return class-string<BackedEnum>
      */
     protected function getStateEnumClass(): string
     {
@@ -43,6 +45,7 @@ trait HasStateMachine
             throw new InvalidArgumentException("State attribute '{$stateAttribute}' must be cast to an enum");
         }
 
+        /** @var class-string<BackedEnum> */
         return $casts[$stateAttribute];
     }
 
@@ -135,9 +138,9 @@ trait HasStateMachine
     {
         $state = $this->getAttribute($this->getStateColumn());
 
-        if ($state === null) {
+        if (! $state instanceof BackedEnum) {
             throw new InvalidStateTransitionException(
-                "State attribute '{$this->getStateColumn()}' is null"
+                "State attribute '{$this->getStateColumn()}' is null or not a valid state"
             );
         }
 

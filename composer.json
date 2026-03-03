@@ -10,8 +10,10 @@
         "illuminate/events": "^10.0 || ^11.0 || ^12.0"
     },
     "require-dev": {
+        "larastan/larastan": "^3.9",
+        "orchestra/testbench": "^8.0 || ^9.0 || ^10.0",
         "pestphp/pest": "^2.0",
-        "orchestra/testbench": "^8.0 || ^9.0 || ^10.0"
+        "phpstan/phpstan": "^2.1"
     },
     "autoload": {
         "psr-4": {
@@ -50,7 +52,8 @@
         "clear": "@php vendor/bin/testbench package:purge-skeleton --ansi",
         "prepare": "@php vendor/bin/testbench package:discover --ansi",
         "build": "@php vendor/bin/testbench workbench:build --ansi",
-        "test": "vendor/bin/pest"
+        "test": "vendor/bin/pest",
+        "analyse": "vendor/bin/phpstan analyse"
     },
     "minimum-stability": "stable",
     "prefer-stable": true
