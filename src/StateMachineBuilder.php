@@ -7,6 +7,16 @@ namespace Maquina;
 use BackedEnum;
 use InvalidArgumentException;
 
+/**
+ * Fluent builder for creating state machine definitions
+ *
+ * Usage:
+ * machine()
+ *     ->from(MyEnum::Pending)->to(MyEnum::Processing, MyEnum::Complete)
+ *     ->from(MyEnum::Processing)->to(MyEnum::Complete, MyEnum::Failed)
+ *     ->final(MyEnum::Complete, MyEnum::Failed)
+ *     ->build(MyEnum::class);
+ */
 class StateMachineBuilder
 {
     /**
@@ -24,6 +34,9 @@ class StateMachineBuilder
     /** @var class-string<BackedEnum>|null */
     private ?string $enumClass = null;
 
+    /**
+     * Define the source state for transitions
+     */
     public function from(BackedEnum $state): self
     {
         $this->trackEnumClass($state);
@@ -36,6 +49,9 @@ class StateMachineBuilder
         return $this;
     }
 
+    /**
+     * Define target states for the current source state
+     */
     public function to(BackedEnum ...$states): self
     {
         $from = $this->currentFromState;
@@ -55,6 +71,10 @@ class StateMachineBuilder
         return $this;
     }
 
+    /**
+     * Mark states as final (no outgoing transitions allowed)
+     * Optional: If not called, states with no outgoing transitions are auto-detected as final
+     */
     public function final(BackedEnum ...$states): self
     {
         foreach ($states as $state) {
@@ -71,6 +91,8 @@ class StateMachineBuilder
     }
 
     /**
+     * Build the final StateMachine instance
+     *
      * @param  class-string<BackedEnum>|null  $enumClass
      */
     public function build(?string $enumClass = null): StateMachine

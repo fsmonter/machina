@@ -6,6 +6,9 @@ namespace Maquina;
 
 use BackedEnum;
 
+/**
+ * Compiled state machine for efficient transition lookups
+ */
 class StateMachine
 {
     /**
@@ -19,12 +22,17 @@ class StateMachine
         private readonly array $finalStates = []
     ) {}
 
+    /**
+     * Check if a transition from source to target state is valid
+     */
     public function canTransition(BackedEnum $from, BackedEnum $target): bool
     {
         return in_array($target, $this->getTransitions($from), true);
     }
 
     /**
+     * Get all allowed transitions from the given state
+     *
      * @return list<BackedEnum>
      */
     public function getTransitions(BackedEnum $from): array
@@ -32,6 +40,9 @@ class StateMachine
         return $this->transitions[$from->value] ?? [];
     }
 
+    /**
+     * Check if the given state is final (has no outgoing transitions)
+     */
     public function isFinal(BackedEnum $state): bool
     {
         if (! empty($this->finalStates)) {
@@ -42,6 +53,8 @@ class StateMachine
     }
 
     /**
+     * Get all states that can transition to the target state
+     *
      * @return list<BackedEnum>
      */
     public function getSourceStates(BackedEnum $target): array
@@ -59,6 +72,8 @@ class StateMachine
     }
 
     /**
+     * Get all states defined in this state machine
+     *
      * @return list<BackedEnum>
      */
     public function getAllStates(): array
@@ -82,6 +97,8 @@ class StateMachine
     }
 
     /**
+     * Converts the state machine definition as an array (useful for caching)
+     *
      * @return array{enum_class: class-string<BackedEnum>, transitions: array<int|string, list<int|string>>, final_states: list<int|string>}
      */
     public function toArray(): array
@@ -100,6 +117,8 @@ class StateMachine
     }
 
     /**
+     * Create a StateMachine from exported array data
+     *
      * @param  array{enum_class: class-string<BackedEnum>, transitions: array<int|string, list<int|string>>, final_states?: list<int|string>}  $data
      */
     public static function fromArray(array $data): self
