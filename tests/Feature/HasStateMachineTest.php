@@ -5,7 +5,7 @@ declare(strict_types=1);
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Maquina\Exceptions\InvalidStateTransitionException;
-use Tests\Models\TestModel;
+use Workbench\App\Models\TestModel;
 use Tests\TestState;
 
 beforeEach(function () {

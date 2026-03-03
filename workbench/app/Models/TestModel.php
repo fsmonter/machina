@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Models;
+namespace Workbench\App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Maquina\Concerns\HasStateMachine;

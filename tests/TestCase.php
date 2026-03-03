@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Tests;
 
-use Orchestra\Testbench\TestCase as BaseTestCase;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Maquina\MaquinaServiceProvider;
+use Orchestra\Testbench\Concerns\WithWorkbench;
+use Orchestra\Testbench\TestCase as Orchestra;
 
-class TestCase extends BaseTestCase
+abstract class TestCase extends Orchestra
 {
-    protected function defineDatabaseMigrations(): void
+    use RefreshDatabase;
+    use WithWorkbench;
+
+    protected function getPackageProviders($app): array
     {
-        $this->loadMigrationsFrom(__DIR__.'/database/migrations');
+        return [
+            MaquinaServiceProvider::class,
+        ];
     }
 }
