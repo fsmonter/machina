@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maquina\Concerns;
 
 use BackedEnum;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Maquina\Exceptions\InvalidStateTransitionException;
 use Maquina\StateMachine;
@@ -66,28 +67,40 @@ trait HasStateMachine
      */
     public function transitionTo(BackedEnum $newState, array $additionalData = []): bool
     {
-        /** @var BackedEnum $currentState */
-        $currentState = $this->getAttribute($this->getStateColumn());
+        $currentState = $this->getCurrentState();
 
-        if (! $this->canTransitionTo($newState)) {
+        if (! $this->getStateMachine()->canTransition($currentState, $newState)) {
             throw new InvalidStateTransitionException(
                 "Cannot transition from {$currentState->value} to {$newState->value}"
             );
         }
 
+        $stateColumn = $this->getStateColumn();
         $oldState = $currentState;
 
-        $updateData = array_merge($additionalData, [
-            $this->getStateColumn() => $newState,
-        ]);
+        return DB::transaction(function () use ($stateColumn, $oldState, $newState, $additionalData) {
+            $updateData = array_merge($additionalData, [
+                $stateColumn => $newState->value,
+            ]);
 
-        $this->update($updateData);
+            $affected = $this->newQuery()
+                ->where($this->getKeyName(), $this->getKey())
+                ->where($stateColumn, $oldState->value)
+                ->update($updateData);
 
-        $this->fireTransitionEvent($oldState, $newState);
+            if ($affected === 0) {
+                throw new InvalidStateTransitionException(
+                    "State transition failed: state was modified concurrently"
+                );
+            }
 
-        $this->afterTransition($oldState, $newState);
+            $this->fill([$stateColumn => $newState] + $additionalData)->syncOriginal();
 
-        return true;
+            $this->fireTransitionEvent($oldState, $newState);
+            $this->afterTransition($oldState, $newState);
+
+            return true;
+        });
     }
 
     /**
@@ -95,8 +108,7 @@ trait HasStateMachine
      */
     public function canTransitionTo(BackedEnum $targetState): bool
     {
-        /** @var BackedEnum $currentState */
-        $currentState = $this->getAttribute($this->getStateColumn());
+        $currentState = $this->getCurrentState();
 
         return $this->getStateMachine()->canTransition($currentState, $targetState);
     }
@@ -108,10 +120,7 @@ trait HasStateMachine
      */
     public function getAllowedTransitions(): array
     {
-        /** @var BackedEnum $currentState */
-        $currentState = $this->getAttribute($this->getStateColumn());
-
-        return $this->getStateMachine()->getTransitions($currentState);
+        return $this->getStateMachine()->getTransitions($this->getCurrentState());
     }
 
     /**
@@ -119,10 +128,20 @@ trait HasStateMachine
      */
     public function isInFinalState(): bool
     {
-        /** @var BackedEnum $currentState */
-        $currentState = $this->getAttribute($this->getStateColumn());
+        return $this->getStateMachine()->isFinal($this->getCurrentState());
+    }
 
-        return $this->getStateMachine()->isFinal($currentState);
+    protected function getCurrentState(): BackedEnum
+    {
+        $state = $this->getAttribute($this->getStateColumn());
+
+        if ($state === null) {
+            throw new InvalidStateTransitionException(
+                "State attribute '{$this->getStateColumn()}' is null"
+            );
+        }
+
+        return $state;
     }
 
     /**
