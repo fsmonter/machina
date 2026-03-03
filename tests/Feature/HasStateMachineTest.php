@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Maquina\Events\StateTransitioned;
 use Maquina\Exceptions\InvalidStateTransitionException;
 use Workbench\App\Models\TestModel;
 use Tests\TestState;
@@ -72,11 +73,23 @@ it('merges additional data during transition', function () {
     expect($fresh->notes)->toBe('Started processing');
 });
 
-it('fires transition event when event class is configured', function () {
+it('fires StateTransitioned event by default', function () {
+    Event::fake();
+
+    $this->model->transitionTo(TestState::Processing);
+
+    Event::assertDispatched(StateTransitioned::class, function ($event) {
+        return $event->model->is($this->model)
+            && $event->oldState === TestState::Pending
+            && $event->newState === TestState::Processing;
+    });
+});
+
+it('fires custom event when getTransitionEventClass is overridden', function () {
     Event::fake();
 
     $model = new class (['state' => TestState::Pending]) extends TestModel {
-        protected function getTransitionEventClass(): ?string
+        protected function getTransitionEventClass(): string
         {
             return \Tests\Stubs\TestTransitionEvent::class;
         }
@@ -85,19 +98,8 @@ it('fires transition event when event class is configured', function () {
 
     $model->transitionTo(TestState::Processing);
 
-    Event::assertDispatched(\Tests\Stubs\TestTransitionEvent::class, function ($event) use ($model) {
-        return $event->model->is($model)
-            && $event->oldState === TestState::Pending
-            && $event->newState === TestState::Processing;
-    });
-});
-
-it('does not fire event when event class is null', function () {
-    Event::fake();
-
-    $this->model->transitionTo(TestState::Processing);
-
-    Event::assertNothingDispatched();
+    Event::assertDispatched(\Tests\Stubs\TestTransitionEvent::class);
+    Event::assertNotDispatched(StateTransitioned::class);
 });
 
 it('calls afterTransition hook', function () {
