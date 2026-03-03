@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maquina\Concerns;
 
 use BackedEnum;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Maquina\Events\StateTransitioned;
@@ -73,7 +74,7 @@ trait HasStateMachine
     {
         $currentState = $this->getCurrentState();
 
-        if (! $this->getStateMachine()->canTransition($currentState, $newState)) {
+        if (! $this->getStateMachine()->canTransition($currentState, $newState, $this)) {
             throw new InvalidStateTransitionException(
                 "Cannot transition from {$currentState->value} to {$newState->value}"
             );
@@ -114,17 +115,22 @@ trait HasStateMachine
     {
         $currentState = $this->getCurrentState();
 
-        return $this->getStateMachine()->canTransition($currentState, $targetState);
+        return $this->getStateMachine()->canTransition($currentState, $targetState, $this);
     }
 
     /**
      * Get all allowed transitions from current state
      *
-     * @return array<int, BackedEnum>
+     * @return list<BackedEnum>
      */
     public function getAllowedTransitions(): array
     {
-        return $this->getStateMachine()->getTransitions($this->getCurrentState());
+        $currentState = $this->getCurrentState();
+
+        return array_values(array_filter(
+            $this->getStateMachine()->getTransitions($currentState),
+            fn (BackedEnum $target): bool => $this->getStateMachine()->canTransition($currentState, $target, $this),
+        ));
     }
 
     /**
@@ -174,4 +180,24 @@ trait HasStateMachine
      * Override in models to implement custom post-transition logic
      */
     protected function afterTransition(BackedEnum $oldState, BackedEnum $newState): void {}
+
+    /**
+     * @param  Builder<static>  $query
+     */
+    public function scopeWhereState(Builder $query, BackedEnum ...$states): void
+    {
+        $values = array_map(fn (BackedEnum $state): int|string => $state->value, $states);
+
+        $query->whereIn($this->getStateColumn(), $values);
+    }
+
+    /**
+     * @param  Builder<static>  $query
+     */
+    public function scopeWhereNotState(Builder $query, BackedEnum ...$states): void
+    {
+        $values = array_map(fn (BackedEnum $state): int|string => $state->value, $states);
+
+        $query->whereNotIn($this->getStateColumn(), $values);
+    }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Maquina;
 
 use BackedEnum;
+use Closure;
 use InvalidArgumentException;
 
 /**
@@ -29,7 +30,17 @@ class StateMachineBuilder
      */
     private array $finalStates = [];
 
+    /**
+     * @var array<string, list<Closure>>
+     */
+    private array $guards = [];
+
     private ?BackedEnum $currentFromState = null;
+
+    /**
+     * @var list<BackedEnum>
+     */
+    private array $lastToStates = [];
 
     /** @var class-string<BackedEnum>|null */
     private ?string $enumClass = null;
@@ -41,6 +52,7 @@ class StateMachineBuilder
     {
         $this->trackEnumClass($state);
         $this->currentFromState = $state;
+        $this->lastToStates = [];
 
         if (! isset($this->transitions[$state->value])) {
             $this->transitions[$state->value] = [];
@@ -60,12 +72,32 @@ class StateMachineBuilder
             throw new InvalidArgumentException('Must call from() before to()');
         }
 
+        $this->lastToStates = [];
+
         foreach ($states as $state) {
             $this->trackEnumClass($state);
 
             if (! in_array($state, $this->transitions[$from->value], true)) {
                 $this->transitions[$from->value][] = $state;
             }
+
+            $this->lastToStates[] = $state;
+        }
+
+        return $this;
+    }
+
+    public function guard(Closure $guard): self
+    {
+        $from = $this->currentFromState;
+
+        if ($from === null || $this->lastToStates === []) {
+            throw new InvalidArgumentException('Must call from()->to() before guard()');
+        }
+
+        foreach ($this->lastToStates as $to) {
+            $key = $from->value.':'.$to->value;
+            $this->guards[$key][] = $guard;
         }
 
         return $this;
@@ -109,7 +141,7 @@ class StateMachineBuilder
             );
         }
 
-        return new StateMachine($resolvedClass, $this->transitions, $this->finalStates);
+        return new StateMachine($resolvedClass, $this->transitions, $this->finalStates, $this->guards);
     }
 
     private function trackEnumClass(BackedEnum $state): void
