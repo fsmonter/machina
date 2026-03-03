@@ -126,7 +126,7 @@ it('normalizes keys to strings in final state machine', function () {
     expect(array_keys($array['transitions']))->each->toBeString();
 });
 
-it('handles empty builder', function () {
+it('handles empty builder with explicit enum class', function () {
     $builder = new StateMachineBuilder;
     $stateMachine = $builder->build(TestState::class);
 
