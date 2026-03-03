@@ -7,6 +7,7 @@ namespace Maquina\Concerns;
 use BackedEnum;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
+use Maquina\Events\StateTransitioned;
 use Maquina\Exceptions\InvalidStateTransitionException;
 use Maquina\StateMachine;
 use Maquina\StateMachineBuilder;
@@ -154,18 +155,18 @@ trait HasStateMachine
     {
         $eventClass = $this->getTransitionEventClass();
 
-        if ($eventClass && class_exists($eventClass)) {
-            event(new $eventClass($this, $oldState, $newState));
-        }
+        event(new $eventClass($this, $oldState, $newState));
     }
 
     /**
      * Get the event class name for transitions
      * Override in model to fire events on state transitions
+     *
+     * @return class-string<StateTransitioned>
      */
-    protected function getTransitionEventClass(): ?string
+    protected function getTransitionEventClass(): string
     {
-        return null;
+        return StateTransitioned::class;
     }
 
     /**
