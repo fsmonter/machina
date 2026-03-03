@@ -53,7 +53,7 @@ it('applies guards only to specified transitions', function () {
 
 function createGuardedModel(int $total): Model
 {
-    $model = new class (['state' => TestState::Pending, 'total' => $total]) extends \Tests\Models\TestModel {
+    $model = new class (['state' => TestState::Pending, 'total' => $total]) extends \Workbench\App\Models\TestModel {
         protected function defineStateMachine(): StateMachineBuilder
         {
             return machine()
@@ -71,7 +71,7 @@ function createGuardedModel(int $total): Model
 
 function createMultiGuardModel(int $total, bool $approved): Model
 {
-    $model = new class (['state' => TestState::Pending, 'total' => $total, 'approved' => $approved]) extends \Tests\Models\TestModel {
+    $model = new class (['state' => TestState::Pending, 'total' => $total, 'approved' => $approved]) extends \Workbench\App\Models\TestModel {
         protected function defineStateMachine(): StateMachineBuilder
         {
             return machine()
