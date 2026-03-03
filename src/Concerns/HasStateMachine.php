@@ -73,7 +73,7 @@ trait HasStateMachine
     {
         $currentState = $this->getCurrentState();
 
-        if (! $this->getStateMachine()->canTransition($currentState, $newState)) {
+        if (! $this->getStateMachine()->canTransition($currentState, $newState, $this)) {
             throw new InvalidStateTransitionException(
                 "Cannot transition from {$currentState->value} to {$newState->value}"
             );
@@ -114,17 +114,22 @@ trait HasStateMachine
     {
         $currentState = $this->getCurrentState();
 
-        return $this->getStateMachine()->canTransition($currentState, $targetState);
+        return $this->getStateMachine()->canTransition($currentState, $targetState, $this);
     }
 
     /**
      * Get all allowed transitions from current state
      *
-     * @return array<int, BackedEnum>
+     * @return list<BackedEnum>
      */
     public function getAllowedTransitions(): array
     {
-        return $this->getStateMachine()->getTransitions($this->getCurrentState());
+        $currentState = $this->getCurrentState();
+
+        return array_values(array_filter(
+            $this->getStateMachine()->getTransitions($currentState),
+            fn (BackedEnum $target): bool => $this->getStateMachine()->canTransition($currentState, $target, $this),
+        ));
     }
 
     /**

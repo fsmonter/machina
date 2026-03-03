@@ -14,6 +14,8 @@ return new class extends Migration
             $table->id();
             $table->string('state')->nullable();
             $table->string('notes')->nullable();
+            $table->integer('total')->default(0);
+            $table->boolean('approved')->default(false);
             $table->timestamps();
         });
     }

@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Maquina;
 
 use BackedEnum;
+use Closure;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Compiled state machine for efficient transition lookups
@@ -15,19 +17,39 @@ class StateMachine
      * @param  class-string<BackedEnum>  $enumClass
      * @param  array<int|string, list<BackedEnum>>  $transitions
      * @param  list<BackedEnum>  $finalStates
+     * @param  array<string, list<Closure>>  $guards
      */
     public function __construct(
         private readonly string $enumClass,
         private readonly array $transitions,
-        private readonly array $finalStates = []
+        private readonly array $finalStates = [],
+        private readonly array $guards = [],
     ) {}
 
     /**
      * Check if a transition from source to target state is valid
      */
-    public function canTransition(BackedEnum $from, BackedEnum $target): bool
+    public function canTransition(BackedEnum $from, BackedEnum $target, ?Model $model = null): bool
     {
-        return in_array($target, $this->getTransitions($from), true);
+        if (! in_array($target, $this->getTransitions($from), true)) {
+            return false;
+        }
+
+        return $this->evaluateGuards($from, $target, $model);
+    }
+
+    private function evaluateGuards(BackedEnum $from, BackedEnum $target, ?Model $model = null): bool
+    {
+        $key = $from->value.':'.$target->value;
+        $guards = $this->guards[$key] ?? [];
+
+        foreach ($guards as $guard) {
+            if (! $guard($model)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
