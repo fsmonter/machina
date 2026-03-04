@@ -1,6 +1,6 @@
 # Machina
 
-Fluent enum-powered state machine implementation.
+Fluent enum-powered state machines for Laravel.
 
 ## Installation
 
