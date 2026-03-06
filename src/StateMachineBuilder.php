@@ -51,6 +51,13 @@ class StateMachineBuilder
     public function from(BackedEnum $state): self
     {
         $this->trackEnumClass($state);
+
+        if (in_array($state, $this->finalStates, true)) {
+            throw new InvalidArgumentException(
+                "Cannot define outgoing transitions from final state {$state->value}"
+            );
+        }
+
         $this->currentFromState = $state;
         $this->lastToStates = [];
 

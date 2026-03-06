@@ -1,7 +1,6 @@
 laravel: '@testbench'
 
 providers:
-  - Machina\MachinaServiceProvider
   - Workbench\App\Providers\WorkbenchServiceProvider
 
 migrations:

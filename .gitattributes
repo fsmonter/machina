@@ -1,0 +1,8 @@
+/tests export-ignore
+/workbench export-ignore
+/.github export-ignore
+/agents export-ignore
+phpunit.xml export-ignore
+phpstan.neon export-ignore
+testbench.yaml export-ignore
+.editorconfig export-ignore

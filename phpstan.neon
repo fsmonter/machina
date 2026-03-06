@@ -5,5 +5,5 @@ parameters:
   paths:
     - src
     - helpers.php
-    - tests/Models
+    - workbench
   level: max

@@ -2,33 +2,59 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Model;
-use Machina\Concerns\HasStateMachine;
 use Machina\Exceptions\InvalidStateTransitionException;
-use Machina\StateMachineBuilder;
+use Tests\Stubs\TestGuardedCast;
+use Tests\Stubs\TestMultiGuardCast;
 use Tests\TestState;
+use Workbench\App\Models\TestModel;
+
+function createGuardedModel(int $total): TestModel
+{
+    $model = new class(['state' => TestState::Pending, 'total' => $total]) extends TestModel
+    {
+        protected $casts = [
+            'state' => TestGuardedCast::class,
+        ];
+    };
+    $model->save();
+
+    return $model;
+}
+
+function createMultiGuardModel(int $total, bool $approved): TestModel
+{
+    $model = new class(['state' => TestState::Pending, 'total' => $total, 'approved' => $approved]) extends TestModel
+    {
+        protected $casts = [
+            'state' => TestMultiGuardCast::class,
+        ];
+    };
+    $model->save();
+
+    return $model;
+}
 
 it('allows transition when guard passes', function () {
     $model = createGuardedModel(total: 100);
 
-    $model->transitionTo(TestState::Processing);
+    $model->state->transitionTo(TestState::Processing);
 
-    expect($model->fresh()->state)->toBe(TestState::Processing);
+    expect($model->fresh()->state->value())->toBe(TestState::Processing);
 });
 
 it('blocks transition when guard fails', function () {
     $model = createGuardedModel(total: 0);
 
-    expect($model->canTransitionTo(TestState::Processing))->toBeFalse();
+    expect($model->state->canTransitionTo(TestState::Processing))->toBeFalse();
 
-    expect(fn () => $model->transitionTo(TestState::Processing))
+    expect(fn () => $model->state->transitionTo(TestState::Processing))
         ->toThrow(InvalidStateTransitionException::class);
 });
 
-it('filters getAllowedTransitions based on guards', function () {
+it('filters allowedTransitions based on guards', function () {
     $model = createGuardedModel(total: 0);
 
-    $allowed = $model->getAllowedTransitions();
+    $allowed = $model->state->allowedTransitions();
 
     expect($allowed)->toContain(TestState::Cancelled);
     expect($allowed)->not->toContain(TestState::Processing);
@@ -37,52 +63,16 @@ it('filters getAllowedTransitions based on guards', function () {
 it('supports multiple guards on the same transition', function () {
     $model = createMultiGuardModel(total: 100, approved: false);
 
-    expect($model->canTransitionTo(TestState::Processing))->toBeFalse();
+    expect($model->state->canTransitionTo(TestState::Processing))->toBeFalse();
 
     $model = createMultiGuardModel(total: 100, approved: true);
 
-    expect($model->canTransitionTo(TestState::Processing))->toBeTrue();
+    expect($model->state->canTransitionTo(TestState::Processing))->toBeTrue();
 });
 
 it('applies guards only to specified transitions', function () {
     $model = createGuardedModel(total: 0);
 
-    expect($model->canTransitionTo(TestState::Processing))->toBeFalse();
-    expect($model->canTransitionTo(TestState::Cancelled))->toBeTrue();
+    expect($model->state->canTransitionTo(TestState::Processing))->toBeFalse();
+    expect($model->state->canTransitionTo(TestState::Cancelled))->toBeTrue();
 });
-
-function createGuardedModel(int $total): Model
-{
-    $model = new class (['state' => TestState::Pending, 'total' => $total]) extends \Workbench\App\Models\TestModel {
-        protected function defineStateMachine(): StateMachineBuilder
-        {
-            return machina()
-                ->from(TestState::Pending)->to(TestState::Processing)
-                    ->guard(fn (Model $model) => $model->total > 0)
-                ->from(TestState::Pending)->to(TestState::Cancelled)
-                ->from(TestState::Processing)->to(TestState::Completed, TestState::Failed)
-                ->final(TestState::Completed, TestState::Failed, TestState::Cancelled);
-        }
-    };
-    $model->save();
-
-    return $model;
-}
-
-function createMultiGuardModel(int $total, bool $approved): Model
-{
-    $model = new class (['state' => TestState::Pending, 'total' => $total, 'approved' => $approved]) extends \Workbench\App\Models\TestModel {
-        protected function defineStateMachine(): StateMachineBuilder
-        {
-            return machina()
-                ->from(TestState::Pending)->to(TestState::Processing)
-                    ->guard(fn (Model $model) => $model->total > 0)
-                    ->guard(fn (Model $model) => $model->approved === true)
-                ->from(TestState::Processing)->to(TestState::Completed)
-                ->final(TestState::Completed);
-        }
-    };
-    $model->save();
-
-    return $model;
-}
