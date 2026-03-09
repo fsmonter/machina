@@ -93,7 +93,7 @@ abstract class StateMachineCast implements CastsAttributes
 
             if ($affected === 0) {
                 throw new InvalidStateTransitionException(
-                    'State transition failed: state was modified concurrently'
+                    'State transition failed: state was not updated.'
                 );
             }
 
@@ -102,7 +102,6 @@ abstract class StateMachineCast implements CastsAttributes
             DB::afterCommit(function () use ($model, $oldState, $newState) {
                 $eventClass = $this->eventClass();
                 event(new $eventClass($model, $oldState, $newState));
-                $this->afterTransition($model, $oldState, $newState);
             });
         });
 
@@ -117,5 +116,36 @@ abstract class StateMachineCast implements CastsAttributes
         return StateTransitioned::class;
     }
 
-    protected function afterTransition(Model $model, BackedEnum $oldState, BackedEnum $newState): void {}
+    /**
+     * @param  array<string, mixed>  $additionalData
+     */
+    public function performOperation(Model $model, string $column, BackedEnum $currentState, string $operationName, array $additionalData = []): bool
+    {
+        $operation = $this->stateMachine()->findOperation($currentState, $operationName);
+
+        if ($operation === null) {
+            throw new InvalidStateTransitionException(
+                "Operation '{$operationName}' is not defined for state {$currentState->value}"
+            );
+        }
+
+        foreach ($operation->guards as $guard) {
+            if (! $guard($model)) {
+                throw new InvalidStateTransitionException(
+                    "Operation '{$operationName}' is blocked by a guard"
+                );
+            }
+        }
+
+        if ($operation->to !== null) {
+            $this->performTransition($model, $column, $currentState, $operation->to, $additionalData);
+        }
+
+        if ($operation->do !== null) {
+            ($operation->do)($model);
+        }
+
+        return true;
+    }
+
 }

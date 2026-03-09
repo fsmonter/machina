@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Event;
 use Machina\Events\StateTransitioned;
 use Machina\Exceptions\InvalidStateTransitionException;
 use Machina\State;
-use Tests\Stubs\TestAfterTransitionCast;
 use Tests\Stubs\TestCustomEventCast;
 use Tests\TestState;
 use Workbench\App\Models\TestModel;
@@ -45,7 +44,7 @@ it('throws on concurrent state modification', function () {
         ->update(['state' => TestState::Processing->value]);
 
     expect(fn () => $this->model->state->transitionTo(TestState::Processing))
-        ->toThrow(InvalidStateTransitionException::class, 'state was modified concurrently');
+        ->toThrow(InvalidStateTransitionException::class, 'state was not updated');
 });
 
 it('checks canTransitionTo correctly', function () {
@@ -107,30 +106,6 @@ it('fires custom event when eventClass is overridden', function () {
 
     Event::assertDispatched(\Tests\Stubs\TestTransitionEvent::class);
     Event::assertNotDispatched(StateTransitioned::class);
-});
-
-it('calls afterTransition hook', function () {
-    $hookCalled = false;
-
-    TestAfterTransitionCast::$hook = function ($model, $old, $new) use (&$hookCalled) {
-        $hookCalled = true;
-        expect($old)->toBe(TestState::Pending);
-        expect($new)->toBe(TestState::Processing);
-    };
-
-    $model = new class(['state' => TestState::Pending]) extends TestModel
-    {
-        protected $casts = [
-            'state' => TestAfterTransitionCast::class,
-        ];
-    };
-    $model->save();
-
-    $model->state->transitionTo(TestState::Processing);
-
-    expect($hookCalled)->toBeTrue();
-
-    TestAfterTransitionCast::$hook = null;
 });
 
 it('transitions through a complete workflow', function () {

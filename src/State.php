@@ -63,6 +63,45 @@ class State implements Stringable
         return $this->cast->stateMachine();
     }
 
+    /**
+     * @param  array<string, mixed>  $additionalData
+     */
+    public function send(string $operation, array $additionalData = []): bool
+    {
+        return $this->cast->performOperation($this->model, $this->column, $this->value, $operation, $additionalData);
+    }
+
+    public function canSend(string $operation): bool
+    {
+        return $this->cast->stateMachine()->canSend($this->value, $operation, $this->model);
+    }
+
+    /**
+     * @return list<string>
+     */
+    public function availableOperations(): array
+    {
+        return array_values(array_map(
+            fn (Operation $op) => $op->name,
+            array_filter(
+                $this->cast->stateMachine()->getOperations($this->value),
+                fn (Operation $op) => $this->cast->stateMachine()->canSend($this->value, $op->name, $this->model),
+            ),
+        ));
+    }
+
+    /**
+     * @param  list<mixed>  $arguments
+     */
+    public function __call(string $method, array $arguments): mixed
+    {
+        if (str_starts_with($method, 'can')) {
+            return $this->canSend(lcfirst(substr($method, 3)));
+        }
+
+        return $this->send($method, $arguments[0] ?? []);
+    }
+
     public function __toString(): string
     {
         return (string) $this->value->value;

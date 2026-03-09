@@ -19,11 +19,15 @@ class StateMachine
      * @param  list<BackedEnum>  $finalStates
      * @param  array<string, list<Closure>>  $guards
      */
+    /**
+     * @param  array<int|string, list<Operation>>  $operations
+     */
     public function __construct(
         private readonly string $enumClass,
         private readonly array $transitions,
         private readonly array $finalStates = [],
         private readonly array $guards = [],
+        private readonly array $operations = [],
     ) {}
 
     /**
@@ -116,6 +120,42 @@ class StateMachine
         }
 
         return $states;
+    }
+
+    public function findOperation(BackedEnum $from, string $name): ?Operation
+    {
+        foreach ($this->operations[$from->value] ?? [] as $operation) {
+            if ($operation->name === $name) {
+                return $operation;
+            }
+        }
+
+        return null;
+    }
+
+    public function canSend(BackedEnum $from, string $name, ?Model $model = null): bool
+    {
+        $operation = $this->findOperation($from, $name);
+
+        if ($operation === null) {
+            return false;
+        }
+
+        foreach ($operation->guards as $guard) {
+            if (! $guard($model)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * @return list<Operation>
+     */
+    public function getOperations(BackedEnum $from): array
+    {
+        return $this->operations[$from->value] ?? [];
     }
 
     /**
