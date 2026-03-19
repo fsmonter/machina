@@ -45,6 +45,18 @@ it('canSend returns false for undefined operation', function () {
     expect($this->machine->canSend(TestState::Pending, 'nonexistent'))->toBeFalse();
 });
 
+it('canSend returns false when transition guards block operation target', function () {
+    $machine = machina()
+        ->from(TestState::Pending)->to(TestState::Processing)
+            ->guard(fn () => false)
+        ->from(TestState::Pending)
+            ->on('start')->to(TestState::Processing)
+        ->build(TestState::class);
+
+    expect($machine->canTransition(TestState::Pending, TestState::Processing))->toBeFalse();
+    expect($machine->canSend(TestState::Pending, 'start'))->toBeFalse();
+});
+
 it('lists operations for a state', function () {
     $ops = $this->machine->getOperations(TestState::Pending);
 

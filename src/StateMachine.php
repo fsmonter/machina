@@ -141,6 +141,10 @@ class StateMachine
             return false;
         }
 
+        if ($operation->to !== null && ! $this->canTransition($from, $operation->to, $model)) {
+            return false;
+        }
+
         foreach ($operation->guards as $guard) {
             if (! $guard($model)) {
                 return false;
