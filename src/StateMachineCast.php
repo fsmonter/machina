@@ -12,7 +12,7 @@ use Machina\Events\StateTransitioned;
 use Machina\Exceptions\InvalidStateTransitionException;
 
 /**
- * @implements CastsAttributes<State, BackedEnum|State|string|int>
+ * @implements CastsAttributes<State, mixed>
  */
 abstract class StateMachineCast implements CastsAttributes
 {
@@ -21,7 +21,8 @@ abstract class StateMachineCast implements CastsAttributes
 
     public bool $withoutObjectCaching = true;
 
-    private ?StateMachine $compiledMachine = null;
+    /** @var array<class-string<self>, StateMachine> */
+    private static array $compiledMachines = [];
 
     abstract public function transitions(): StateMachineBuilder;
 
@@ -41,7 +42,6 @@ abstract class StateMachineCast implements CastsAttributes
     }
 
     /**
-     * @param  State|BackedEnum|string|int|null  $value
      * @param  array<string, mixed>  $attributes
      */
     public function set(Model $model, string $key, mixed $value, array $attributes): string|int|null
@@ -51,23 +51,27 @@ abstract class StateMachineCast implements CastsAttributes
         }
 
         if ($value instanceof State) {
-            return $value->value()->value;
+            $value = $value->value();
         }
 
-        if ($value instanceof BackedEnum) {
-            return $value->value;
+        if (! $value instanceof BackedEnum) {
+            throw new \InvalidArgumentException(
+                "Value must be a {$this->enum} enum instance, got ".get_debug_type($value)
+            );
         }
 
-        return $value;
+        if (! $value instanceof $this->enum) {
+            throw new \InvalidArgumentException(
+                "Value must be a {$this->enum} enum instance, got ".$value::class
+            );
+        }
+
+        return $value->value;
     }
 
     public function stateMachine(): StateMachine
     {
-        if ($this->compiledMachine === null) {
-            $this->compiledMachine = $this->transitions()->build($this->enum);
-        }
-
-        return $this->compiledMachine;
+        return self::$compiledMachines[static::class] ??= $this->transitions()->build($this->enum);
     }
 
     /**
@@ -75,13 +79,13 @@ abstract class StateMachineCast implements CastsAttributes
      */
     public function performTransition(Model $model, string $column, BackedEnum $oldState, BackedEnum $newState, array $additionalData = []): bool
     {
-        if (! $this->stateMachine()->canTransition($oldState, $newState, $model)) {
-            throw new InvalidStateTransitionException(
-                "Cannot transition from {$oldState->value} to {$newState->value}"
-            );
-        }
-
         DB::transaction(function () use ($model, $column, $oldState, $newState, $additionalData) {
+            if (! $this->stateMachine()->canTransition($oldState, $newState, $model)) {
+                throw new InvalidStateTransitionException(
+                    "Cannot transition from {$oldState->value} to {$newState->value}"
+                );
+            }
+
             $updateData = array_merge($additionalData, [
                 $column => $newState->value,
             ]);
@@ -147,5 +151,4 @@ abstract class StateMachineCast implements CastsAttributes
 
         return true;
     }
-
 }

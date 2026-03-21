@@ -134,6 +134,33 @@ it('handles empty builder with explicit enum class', function () {
     expect($stateMachine->getAllStates())->toEqual([]);
 });
 
+it('handles enum values containing colons without key collisions', function () {
+    enum ColonState: string
+    {
+        case PendingReview = 'pending:review';
+        case Active = 'active';
+        case PendingActive = 'pending';
+        case Review = 'review';
+    }
+
+    $guardCalled = false;
+    $sm = machina()
+        ->from(ColonState::PendingReview)->to(ColonState::Active)
+            ->guard(function () use (&$guardCalled) {
+                $guardCalled = true;
+
+                return true;
+            })
+        ->from(ColonState::PendingActive)->to(ColonState::Review)
+        ->build();
+
+    expect($sm->canTransition(ColonState::PendingReview, ColonState::Active))->toBeTrue();
+    expect($guardCalled)->toBeTrue();
+
+    expect($sm->canTransition(ColonState::PendingActive, ColonState::Review))->toBeTrue();
+    expect($sm->canTransition(ColonState::PendingActive, ColonState::Active))->toBeFalse();
+});
+
 it('can build state machine without explicit final states', function () {
     $builder = new StateMachineBuilder;
     $stateMachine = $builder

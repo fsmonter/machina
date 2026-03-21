@@ -145,3 +145,30 @@ it('compares state with is()', function () {
 it('converts to string', function () {
     expect((string) $this->model->state)->toBe('pending');
 });
+
+it('rejects raw string values in set()', function () {
+    expect(fn () => $this->model->fill(['state' => 'processing']))
+        ->toThrow(\InvalidArgumentException::class, 'enum instance');
+});
+
+it('rejects raw integer values in set()', function () {
+    expect(fn () => $this->model->fill(['state' => 1]))
+        ->toThrow(\InvalidArgumentException::class, 'enum instance');
+});
+
+it('rejects foreign enum values in set()', function () {
+    expect(fn () => $this->model->fill(['state' => \Tests\TestIntState::Pending]))
+        ->toThrow(\InvalidArgumentException::class, 'enum instance');
+});
+
+it('accepts valid enum values in set()', function () {
+    $this->model->fill(['state' => TestState::Processing]);
+
+    expect($this->model->getAttributes()['state'])->toBe('processing');
+});
+
+it('accepts null values in set()', function () {
+    $this->model->fill(['state' => null]);
+
+    expect($this->model->getAttributes()['state'])->toBeNull();
+});

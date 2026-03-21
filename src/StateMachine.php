@@ -13,13 +13,17 @@ use Illuminate\Database\Eloquent\Model;
  */
 class StateMachine
 {
+    /** @var array<int|string, true> */
+    private readonly array $finalStatesIndex;
+
+    /** @var array<int|string, array<string, Operation>> */
+    private readonly array $operationsByName;
+
     /**
      * @param  class-string<BackedEnum>  $enumClass
      * @param  array<int|string, list<BackedEnum>>  $transitions
      * @param  list<BackedEnum>  $finalStates
-     * @param  array<string, list<Closure>>  $guards
-     */
-    /**
+     * @param  array<int|string, array<int|string, list<Closure>>>  $guards
      * @param  array<int|string, list<Operation>>  $operations
      */
     public function __construct(
@@ -28,7 +32,21 @@ class StateMachine
         private readonly array $finalStates = [],
         private readonly array $guards = [],
         private readonly array $operations = [],
-    ) {}
+    ) {
+        $index = [];
+        foreach ($this->finalStates as $state) {
+            $index[$state->value] = true;
+        }
+        $this->finalStatesIndex = $index;
+
+        $byName = [];
+        foreach ($this->operations as $fromValue => $ops) {
+            foreach ($ops as $op) {
+                $byName[$fromValue][$op->name] = $op;
+            }
+        }
+        $this->operationsByName = $byName;
+    }
 
     /**
      * Check if a transition from source to target state is valid
@@ -44,8 +62,7 @@ class StateMachine
 
     private function evaluateGuards(BackedEnum $from, BackedEnum $target, ?Model $model = null): bool
     {
-        $key = $from->value.':'.$target->value;
-        $guards = $this->guards[$key] ?? [];
+        $guards = $this->guards[$from->value][$target->value] ?? [];
 
         foreach ($guards as $guard) {
             if (! $guard($model)) {
@@ -71,8 +88,8 @@ class StateMachine
      */
     public function isFinal(BackedEnum $state): bool
     {
-        if (! empty($this->finalStates)) {
-            return in_array($state, $this->finalStates, true);
+        if (! empty($this->finalStatesIndex)) {
+            return isset($this->finalStatesIndex[$state->value]);
         }
 
         return empty($this->getTransitions($state));
@@ -105,32 +122,25 @@ class StateMachine
     public function getAllStates(): array
     {
         $enumClass = $this->enumClass;
-        $states = [];
+        /** @var array<int|string, BackedEnum> $seen */
+        $seen = [];
 
         foreach (array_keys($this->transitions) as $value) {
-            $states[] = $enumClass::from($value);
+            $seen[$value] = $enumClass::from($value);
         }
 
         foreach ($this->transitions as $transitions) {
             foreach ($transitions as $state) {
-                if (! in_array($state, $states, true)) {
-                    $states[] = $state;
-                }
+                $seen[$state->value] ??= $state;
             }
         }
 
-        return $states;
+        return array_values($seen);
     }
 
     public function findOperation(BackedEnum $from, string $name): ?Operation
     {
-        foreach ($this->operations[$from->value] ?? [] as $operation) {
-            if ($operation->name === $name) {
-                return $operation;
-            }
-        }
-
-        return null;
+        return $this->operationsByName[$from->value][$name] ?? null;
     }
 
     public function canSend(BackedEnum $from, string $name, ?Model $model = null): bool
@@ -169,16 +179,20 @@ class StateMachine
      */
     public function toArray(): array
     {
+        /** @var array<int|string, list<int|string>> $export */
         $export = [];
 
         foreach ($this->transitions as $sourceValue => $transitions) {
             $export[$sourceValue] = array_map(fn (BackedEnum $state): int|string => $state->value, $transitions);
         }
 
+        /** @var list<int|string> $finalStates */
+        $finalStates = array_map(fn (BackedEnum $state): int|string => $state->value, $this->finalStates);
+
         return [
             'enum_class' => $this->enumClass,
             'transitions' => $export,
-            'final_states' => array_map(fn (BackedEnum $state): int|string => $state->value, $this->finalStates),
+            'final_states' => $finalStates,
         ];
     }
 
