@@ -91,7 +91,7 @@ class State implements Stringable
     }
 
     /**
-     * @param  list<mixed>  $arguments
+     * @param  array{0?: array<string, mixed>}  $arguments
      */
     public function __call(string $method, array $arguments): mixed
     {
@@ -99,7 +99,10 @@ class State implements Stringable
             return $this->canSend(lcfirst(substr($method, 3)));
         }
 
-        return $this->send($method, $arguments[0] ?? []);
+        /** @var array<string, mixed> $additionalData */
+        $additionalData = $arguments[0] ?? [];
+
+        return $this->send($method, $additionalData);
     }
 
     public function __toString(): string
