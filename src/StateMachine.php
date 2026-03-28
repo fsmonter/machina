@@ -248,9 +248,9 @@ class StateMachine
 
     /**
      * @param  class-string<BackedEnum>  $enumClass
-     * @return \Closure(int|string): (int|string)
+     * @return Closure(int|string): (int|string)
      */
-    private static function valueCasterFor(string $enumClass): \Closure
+    private static function valueCasterFor(string $enumClass): Closure
     {
         $reflection = new \ReflectionEnum($enumClass);
         $backingType = (string) $reflection->getBackingType();

@@ -245,7 +245,7 @@ it('rejects operations from final states', function () {
     machina()
         ->final(TestState::Completed)
         ->on('retry', from: TestState::Completed, to: TestState::Processing);
-})->throws(InvalidArgumentException::class, 'Cannot define operations from final state completed');
+})->throws(InvalidArgumentException::class, 'Cannot define transitions from final state completed');
 
 it('validates enum types in transition()', function () {
     machina()

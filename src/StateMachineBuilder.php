@@ -64,17 +64,7 @@ class StateMachineBuilder
         Closure|array|null $guard = null,
         ?Closure $action = null,
     ): self {
-        $this->trackEnumClass($from);
-
-        if ($to !== null) {
-            $this->trackEnumClass($to);
-        }
-
-        if (in_array($from, $this->finalStates, true)) {
-            throw new InvalidArgumentException(
-                "Cannot define operations from final state {$from->value}"
-            );
-        }
+        $this->registerTransition($from, $to);
 
         $fromValue = $from->value;
         foreach ($this->operationDefs as $def) {
@@ -85,25 +75,11 @@ class StateMachineBuilder
             }
         }
 
-        if (! isset($this->transitions[$fromValue])) {
-            $this->transitions[$fromValue] = [];
-        }
-
-        if ($to !== null && ! in_array($to, $this->transitions[$fromValue], true)) {
-            $this->transitions[$fromValue][] = $to;
-        }
-
-        $guards = match (true) {
-            $guard instanceof Closure => [$guard],
-            is_array($guard) => $guard,
-            default => [],
-        };
-
         $this->operationDefs[] = [
             'name' => $name,
             'from' => $from,
             'to' => $to,
-            'guards' => $guards,
+            'guards' => $this->normalizeGuards($guard),
             'action' => $action,
         ];
 
@@ -120,28 +96,10 @@ class StateMachineBuilder
         BackedEnum $to,
         Closure|array|null $guard = null,
     ): self {
-        $this->trackEnumClass($from);
-        $this->trackEnumClass($to);
+        $this->registerTransition($from, $to);
 
-        if (in_array($from, $this->finalStates, true)) {
-            throw new InvalidArgumentException(
-                "Cannot define transitions from final state {$from->value}"
-            );
-        }
-
-        if (! isset($this->transitions[$from->value])) {
-            $this->transitions[$from->value] = [];
-        }
-
-        if (! in_array($to, $this->transitions[$from->value], true)) {
-            $this->transitions[$from->value][] = $to;
-        }
-
-        if ($guard !== null) {
-            $guards = $guard instanceof Closure ? [$guard] : $guard;
-            foreach ($guards as $g) {
-                $this->guards[$from->value][$to->value][] = $g;
-            }
+        foreach ($this->normalizeGuards($guard) as $g) {
+            $this->guards[$from->value][$to->value][] = $g;
         }
 
         return $this;
@@ -214,5 +172,41 @@ class StateMachineBuilder
                 "All states must be the same enum type. Expected {$this->enumClass}, got {$class}"
             );
         }
+    }
+
+    private function registerTransition(BackedEnum $from, ?BackedEnum $to): void
+    {
+        $this->trackEnumClass($from);
+
+        if ($to !== null) {
+            $this->trackEnumClass($to);
+        }
+
+        if (in_array($from, $this->finalStates, true)) {
+            throw new InvalidArgumentException(
+                "Cannot define transitions from final state {$from->value}"
+            );
+        }
+
+        if (! isset($this->transitions[$from->value])) {
+            $this->transitions[$from->value] = [];
+        }
+
+        if ($to !== null && ! in_array($to, $this->transitions[$from->value], true)) {
+            $this->transitions[$from->value][] = $to;
+        }
+    }
+
+    /**
+     * @param  Closure|list<Closure>|null  $guard
+     * @return list<Closure>
+     */
+    private function normalizeGuards(Closure|array|null $guard): array
+    {
+        return match (true) {
+            $guard instanceof Closure => [$guard],
+            is_array($guard) => $guard,
+            default => [],
+        };
     }
 }
