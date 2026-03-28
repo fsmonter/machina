@@ -114,6 +114,20 @@ class StateMachineBuilder
         foreach ($states as $state) {
             $this->trackEnumClass($state);
 
+            if (! empty($this->transitions[$state->value] ?? [])) {
+                throw new InvalidArgumentException(
+                    "Cannot mark state {$state->value} as final after defining transitions from it"
+                );
+            }
+
+            foreach ($this->operationDefs as $operation) {
+                if ($operation['from']->value === $state->value) {
+                    throw new InvalidArgumentException(
+                        "Cannot mark state {$state->value} as final after defining operations from it"
+                    );
+                }
+            }
+
             if (! in_array($state, $this->finalStates, true)) {
                 $this->finalStates[] = $state;
             }

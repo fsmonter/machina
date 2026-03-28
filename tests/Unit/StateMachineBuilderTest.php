@@ -53,7 +53,7 @@ it('defines final states', function () {
 
 it('ensures final states have empty transitions', function () {
     $sm = machina()
-        ->transition(from: TestState::Completed, to: TestState::Processing)
+        ->transition(from: TestState::Pending, to: TestState::Processing)
         ->final(TestState::Completed)
         ->build();
 
@@ -246,6 +246,18 @@ it('rejects operations from final states', function () {
         ->final(TestState::Completed)
         ->on('retry', from: TestState::Completed, to: TestState::Processing);
 })->throws(InvalidArgumentException::class, 'Cannot define transitions from final state completed');
+
+it('rejects marking a state as final after defining transitions from it', function () {
+    machina()
+        ->transition(from: TestState::Completed, to: TestState::Processing)
+        ->final(TestState::Completed);
+})->throws(InvalidArgumentException::class, 'Cannot mark state completed as final after defining transitions from it');
+
+it('rejects marking a state as final after defining operations from it', function () {
+    machina()
+        ->on('archive', from: TestState::Completed)
+        ->final(TestState::Completed);
+})->throws(InvalidArgumentException::class, 'Cannot mark state completed as final after defining operations from it');
 
 it('validates enum types in transition()', function () {
     machina()
