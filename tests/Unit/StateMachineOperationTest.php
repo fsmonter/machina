@@ -9,7 +9,8 @@ beforeEach(function () {
     $this->machine = machina()
         ->state(TestState::Pending, function (Machina\StateBuilder $state) {
             $state->on('start')->target(TestState::Processing);
-            $state->on('cancel')->target(TestState::Cancelled)
+            $state->on('cancel')
+                ->target(TestState::Cancelled)
                 ->guard(fn ($model) => $model?->canCancel ?? true);
         })
         ->state(TestState::Processing, function (Machina\StateBuilder $state) {

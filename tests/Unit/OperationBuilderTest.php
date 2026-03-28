@@ -36,7 +36,9 @@ it('attaches guard to operation', function () {
 
     $machine = machina()
         ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($guard) {
-            $state->on('start')->target(TestState::Processing)->guard($guard);
+            $state->on('start')
+                ->target(TestState::Processing)
+                ->guard($guard);
         })
         ->build(TestState::class);
 
@@ -85,7 +87,9 @@ it('attaches action to operation', function () {
 
     $machine = machina()
         ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($actionFn) {
-            $state->on('start')->target(TestState::Processing)->action($actionFn);
+            $state->on('start')
+                ->target(TestState::Processing)
+                ->action($actionFn);
         })
         ->build(TestState::class);
 
@@ -97,7 +101,8 @@ it('attaches action to operation', function () {
 it('accepts guard as array of closures', function () {
     $machine = machina()
         ->state(TestState::Pending, function (Machina\StateBuilder $state) {
-            $state->on('start')->target(TestState::Processing)
+            $state->on('start')
+                ->target(TestState::Processing)
                 ->guard([fn () => true, fn () => false]);
         })
         ->build(TestState::class);

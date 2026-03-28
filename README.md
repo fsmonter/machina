@@ -72,7 +72,7 @@ class Order extends Model
 ### 4. Use it
 
 ```php
-$order = Order::create(); // state is auto-set to 'pending'
+$order = Order::create(); // state column is auto-set to 'pending'
 
 // Get current state enum
 $order->state->current(); // OrderState::Pending

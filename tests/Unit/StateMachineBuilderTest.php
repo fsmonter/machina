@@ -191,8 +191,10 @@ it('builds operations with guard and action', function () {
 
     $sm = machina()
         ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($guardFn, $actionFn) {
-            $state->on('process')->target(TestState::Processing)
-                ->guard($guardFn)->action($actionFn);
+            $state->on('process')
+                ->target(TestState::Processing)
+                ->guard($guardFn)
+                ->action($actionFn);
         })
         ->build();
 
@@ -204,7 +206,8 @@ it('builds operations with guard and action', function () {
 it('accepts guard as array of closures', function () {
     $sm = machina()
         ->state(TestState::Pending, function (Machina\StateBuilder $state) {
-            $state->on('process')->target(TestState::Processing)
+            $state->on('process')
+                ->target(TestState::Processing)
                 ->guard([fn () => true, fn () => true]);
         })
         ->build();
