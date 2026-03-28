@@ -96,12 +96,12 @@ it('throws for undefined operation', function () {
     $model = createOperationModel();
 
     expect(fn () => $model->state->send('nonexistent'))
-        ->toThrow(InvalidStateTransitionException::class, 'not defined for state');
+        ->toThrow(InvalidStateTransitionException::class, 'not defined for current state');
 });
 
 it('throws for operation on wrong state', function () {
     $model = createOperationModel();
 
     expect(fn () => $model->state->send('complete'))
-        ->toThrow(InvalidStateTransitionException::class, 'not defined for state');
+        ->toThrow(InvalidStateTransitionException::class, 'not defined for current state');
 });

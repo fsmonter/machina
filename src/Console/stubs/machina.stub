@@ -1,0 +1,20 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Machina\Machina;
+use Machina\StateMachineBuilder;
+
+class {{ class }} extends Machina
+{
+    public function transitions(): StateMachineBuilder
+    {
+        return machina()
+            // ->initial(YourEnum::Default)
+            // ->on('activate', from: YourEnum::Default, to: YourEnum::Active)
+            // ->final(YourEnum::Closed)
+            ;
+    }
+}

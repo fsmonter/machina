@@ -16,6 +16,9 @@ use Illuminate\Database\Eloquent\Model;
  */
 class MachinaCast implements CastsAttributes
 {
+    /**
+     * Prevents Laravel from caching the State object, ensures a fresh read after transitions.
+     */
     public bool $withoutObjectCaching = true;
 
     private ?Machina $machina = null;
@@ -33,6 +36,9 @@ class MachinaCast implements CastsAttributes
     }
 
     /**
+     * Convert the raw database value into a State object that provides
+     * the full state machine API (send, canSend, transitionTo, etc.).
+     *
      * @param  array<string, mixed>  $attributes
      */
     public function get(Model $model, string $key, mixed $value, array $attributes): ?State
@@ -51,6 +57,9 @@ class MachinaCast implements CastsAttributes
     }
 
     /**
+     * Validate and convert an enum value to its scalar form for database storage.
+     * Accepts the correct BackedEnum, a State object, or null.
+     *
      * @param  array<string, mixed>  $attributes
      */
     public function set(Model $model, string $key, mixed $value, array $attributes): string|int|null
