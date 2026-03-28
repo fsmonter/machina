@@ -53,7 +53,7 @@ class State implements Stringable
         return $this->value === $state;
     }
 
-    public function value(): BackedEnum
+    public function current(): BackedEnum
     {
         return $this->value;
     }

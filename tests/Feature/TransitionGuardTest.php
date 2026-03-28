@@ -39,7 +39,7 @@ it('allows transition when guard passes', function () {
 
     $model->state->transitionTo(TestState::Processing);
 
-    expect($model->fresh()->state->value())->toBe(TestState::Processing);
+    expect($model->fresh()->state->current())->toBe(TestState::Processing);
 });
 
 it('blocks transition when guard fails', function () {

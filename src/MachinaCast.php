@@ -69,7 +69,7 @@ class MachinaCast implements CastsAttributes
         }
 
         if ($value instanceof State) {
-            $value = $value->value();
+            $value = $value->current();
         }
 
         $enumClass = $this->machina()->getEnumClass();

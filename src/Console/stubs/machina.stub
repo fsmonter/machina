@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace {{ namespace }};
 
 use Machina\Machina;
+use Machina\StateBuilder;
 use Machina\StateMachineBuilder;
 
 class {{ class }} extends Machina
@@ -13,7 +14,9 @@ class {{ class }} extends Machina
     {
         return machina()
             // ->initial(YourEnum::Default)
-            // ->on('activate', from: YourEnum::Default, to: YourEnum::Active)
+            // ->state(YourEnum::Default, function (StateBuilder $state) {
+            //     $state->on('activate')->target(YourEnum::Active);
+            // })
             // ->final(YourEnum::Closed)
             ;
     }

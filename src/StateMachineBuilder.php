@@ -14,10 +14,11 @@ use InvalidArgumentException;
  * Usage:
  * machina()
  *     ->initial(MyEnum::Pending)
- *     ->on('process', from: MyEnum::Pending, to: MyEnum::Processing,
- *         guard: fn ($model) => $model->total > 0,
- *         action: fn ($model) => $model->notify(new Processing))
- *     ->on('cancel', from: MyEnum::Pending, to: MyEnum::Cancelled)
+ *     ->state(MyEnum::Pending, function ($state) {
+ *         $state->on('process')->target(MyEnum::Processing)
+ *             ->guard(fn ($m) => $m->total > 0);
+ *         $state->on('cancel')->target(MyEnum::Cancelled);
+ *     })
  *     ->transition(from: MyEnum::Processing, to: MyEnum::Complete)
  *     ->final(MyEnum::Complete, MyEnum::Cancelled)
  *     ->build();
@@ -53,35 +54,42 @@ class StateMachineBuilder
     }
 
     /**
-     * Define a named operation
+     * Define operations available from a state
      *
-     * @param  Closure|list<Closure>|null  $guard
+     * @param  Closure(StateBuilder): void  $callback
      */
-    public function on(
-        string $name,
-        BackedEnum $from,
-        ?BackedEnum $to = null,
-        Closure|array|null $guard = null,
-        ?Closure $action = null,
-    ): self {
-        $this->registerTransition($from, $to);
+    public function state(BackedEnum $state, Closure $callback): self
+    {
+        $this->trackEnumClass($state);
 
-        $fromValue = $from->value;
-        foreach ($this->operationDefs as $def) {
-            if ($def['from']->value === $fromValue && $def['name'] === $name) {
-                throw new InvalidArgumentException(
-                    "Duplicate operation '{$name}' for state {$fromValue}"
-                );
-            }
+        if (in_array($state, $this->finalStates, true)) {
+            throw new InvalidArgumentException(
+                "Cannot define operations from final state {$state->value}"
+            );
         }
 
-        $this->operationDefs[] = [
-            'name' => $name,
-            'from' => $from,
-            'to' => $to,
-            'guards' => $this->normalizeGuards($guard),
-            'action' => $action,
-        ];
+        if (! isset($this->transitions[$state->value])) {
+            $this->transitions[$state->value] = [];
+        }
+
+        $stateBuilder = new StateBuilder($state);
+        $callback($stateBuilder);
+
+        foreach ($stateBuilder->getOperations() as $def) {
+            $target = $def['target'];
+
+            if ($target !== null) {
+                $this->registerTransition($state, $target);
+            }
+
+            $this->operationDefs[] = [
+                'name' => $def['name'],
+                'from' => $state,
+                'to' => $target,
+                'guards' => $def['guards'],
+                'action' => $def['action'],
+            ];
+        }
 
         return $this;
     }

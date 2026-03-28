@@ -20,9 +20,11 @@ it('throws when mixing enum types in transition()', function () {
     )->toThrow(InvalidArgumentException::class, 'All states must be the same enum type');
 });
 
-it('throws when mixing enum types in on()', function () {
+it('throws when mixing enum types in state() target', function () {
     expect(fn () => machina()
-        ->on('x', from: TestState::Pending, to: TestIntState::Processing)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('x')->target(TestIntState::Processing);
+        })
     )->toThrow(InvalidArgumentException::class, 'All states must be the same enum type');
 });
 

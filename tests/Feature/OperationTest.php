@@ -30,7 +30,7 @@ it('performs a transition via send()', function () {
 
     $model->state->send('contact');
 
-    expect($model->fresh()->state->value())->toBe(TestState::Processing);
+    expect($model->fresh()->state->current())->toBe(TestState::Processing);
 });
 
 it('runs do() closure after transition', function () {
@@ -47,7 +47,7 @@ it('runs do() without transition for state-bound operations', function () {
     $model->state->send('sms');
 
     expect(TestOperationMachina::$smsCalled)->toBeTrue();
-    expect($model->fresh()->state->value())->toBe(TestState::Processing);
+    expect($model->fresh()->state->current())->toBe(TestState::Processing);
 });
 
 it('throws when guard blocks operation', function () {
@@ -80,7 +80,7 @@ it('supports __call for send', function () {
 
     $model->state->contact();
 
-    expect($model->fresh()->state->value())->toBe(TestState::Processing);
+    expect($model->fresh()->state->current())->toBe(TestState::Processing);
     expect(TestOperationMachina::$contactCalled)->toBeTrue();
 });
 

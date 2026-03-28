@@ -27,6 +27,7 @@ enum OrderState: string
 
 ```php
 use Machina\Machina;
+use Machina\StateBuilder;
 use Machina\StateMachineBuilder;
 
 class OrderStateMachine extends Machina
@@ -35,19 +36,19 @@ class OrderStateMachine extends Machina
     {
         return machina()
             ->initial(OrderState::Pending)
-            ->on('process',
-                from: OrderState::Pending,
-                to: OrderState::Processing,
-                guard: fn (Order $order) => $order->total > 0,
-                action: fn (Order $order) => $order->notify(new OrderProcessing)
-            )
-            ->on('cancel', from: OrderState::Pending, to: OrderState::Cancelled)
-            ->on('complete',
-                from: OrderState::Processing,
-                to: OrderState::Completed,
-                action: fn (Order $order) => $order->update(['completed_at' => now()])
-            )
-            ->on('fail', from: OrderState::Processing, to: OrderState::Failed)
+            ->state(OrderState::Pending, function (StateBuilder $state) {
+                $state->on('process')
+                    ->target(OrderState::Processing)
+                    ->guard(fn (Order $order) => $order->total > 0)
+                    ->action(fn (Order $order) => $order->notify(new OrderProcessing));
+                $state->on('cancel')->target(OrderState::Cancelled);
+            })
+            ->state(OrderState::Processing, function (StateBuilder $state) {
+                $state->on('complete')
+                    ->target(OrderState::Completed)
+                    ->action(fn (Order $order) => $order->update(['completed_at' => now()]));
+                $state->on('fail')->target(OrderState::Failed);
+            })
             ->final(OrderState::Completed, OrderState::Failed, OrderState::Cancelled);
     }
 }
@@ -71,7 +72,10 @@ class Order extends Model
 ### 4. Use it
 
 ```php
-$order = Order::create(); // state auto-set to 'pending'
+$order = Order::create(); // state is auto-set to 'pending'
+
+// Get current state enum
+$order->state->current(); // OrderState::Pending
 
 // Send operations by name
 $order->state->send('process');
@@ -98,55 +102,61 @@ Order::create(['state' => OrderState::Failed]); // state = OrderState::Failed (n
 
 ## Operations
 
-Operations are the primary way to interact with state machines. They let you declare intent ("process this order") rather than specify target states ("go to processing").
+Operations are the primary way to interact with state machines. They let you declare intent ("approve this transaction") rather than specify target states ("go to approved").
 
 ```php
 machina()
-    ->initial(LeadStatus::New)
-    ->on('contact',
-        from: LeadStatus::New,
-        to: LeadStatus::Contacted,
-        action: fn (Lead $lead) => $lead->logActivity('First contact made')
-    )
-    ->on('disqualify', from: LeadStatus::New, to: LeadStatus::Lost)
-    ->on('qualify',
-        from: LeadStatus::Contacted,
-        to: LeadStatus::Qualified,
-        guard: fn (Lead $lead) => $lead->email !== null,
-        action: fn (Lead $lead) => $lead->notify(new LeadQualified)
-    )
-    ->on('sms',
-        from: LeadStatus::Contacted,
-        action: fn (Lead $lead) => app(SmsService::class)->send($lead)
-    )
-    ->on('lose', from: LeadStatus::Contacted, to: LeadStatus::Lost)
-    ->final(LeadStatus::Won, LeadStatus::Lost)
+    ->initial(TransactionState::Pending)
+    ->state(TransactionState::Pending, function (StateBuilder $state) {
+        $state->on('approve')
+            ->target(TransactionState::Approved)
+            ->guard(fn (Transaction $tx) => $tx->amount <= $tx->account->balance)
+            ->action(fn (Transaction $tx) => $tx->account->debit($tx->amount));
+        $state->on('reject')
+            ->target(TransactionState::Rejected)
+            ->action(fn (Transaction $tx) => $tx->notify(new TransactionRejected));
+        $state->on('flag')
+            ->action(fn (Transaction $tx) => $tx->notifyCompliance());
+    })
+    ->state(TransactionState::Approved, function (StateBuilder $state) {
+        $state->on('settle')
+            ->target(TransactionState::Settled)
+            ->guard(fn (Transaction $tx) => $tx->cleared_at !== null);
+    })
+    ->state(TransactionState::Settled, function (StateBuilder $state) {
+        $state->on('reverse')
+            ->target(TransactionState::Reversed)
+            ->action(fn (Transaction $tx) => $tx->account->credit($tx->amount));
+    })
+    ->final(TransactionState::Settled, TransactionState::Rejected, TransactionState::Reversed)
 ```
 
-**`on(string $name, from:, to:, guard:, action:)`** defines a named operation.
+**`state(BackedEnum $state, Closure $callback)`** groups operations by their source state.
 
-- `from:` (required) the source state
-- `to:` (optional) the target state. Omit for state-bound operations
-- `guard:` (optional) a Closure or array of Closures that must all return true
-- `action:` (optional) a Closure that runs after the transition completes
+Inside the closure, define operations with:
+
+- **`$state->on(string $name)`** starts an operation definition
+- **`->target(BackedEnum $state)`** sets the target state
+- **`->guard(Closure|array $guard)`** adds condition(s) that must pass
+- **`->action(Closure $action)`** runs after the transition completes
 
 ### Execution order
 
-For operations with a transition: guard evaluation, atomic state transition, then `action` closure.
+For operations with a target: guard evaluation, atomic state transition, then `action` closure.
 
-For state-bound operations (no `to:`): guard evaluation, then `action` closure. The state does not change.
+For state-bound operations (no `target()`): guard evaluation, then `action` closure. The state does not change.
 
 Note: `action` runs after the database transaction commits. If the closure throws, the state change is already persisted.
 
 ### State-bound operations
 
-An operation without `to:` runs its `action` closure without changing state. Useful for actions that belong to a specific state but don't trigger a transition:
+An operation without `target()` runs its `action` closure without changing state. Useful for actions that belong to a specific state but don't trigger a transition:
 
 ```php
-->on('sendUpdate',
-    from: OrderState::Processing,
-    action: fn (Order $order) => $order->notifyCustomer()
-)
+->state(OrderState::Processing, function (StateBuilder $state) {
+    $state->on('sendUpdate')
+        ->action(fn (Order $order) => $order->notifyCustomer());
+})
 ```
 
 ## Direct Transitions
@@ -172,7 +182,7 @@ $order->state->canTransitionTo(OrderState::Processing); // bool
 $order->state->allowedTransitions(); // [OrderState::Processing, OrderState::Cancelled]
 ```
 
-`on()` and `transition()` can be mixed on the same builder.
+`state()` and `transition()` can be mixed on the same builder.
 
 ## Transition Guards
 
@@ -186,14 +196,14 @@ Guards add conditions to transitions. All guards must pass for the transition to
     ])
 ```
 
-On operations, guards are passed inline:
+On operations, guards are chained:
 
 ```php
-->on('process',
-    from: OrderState::Pending,
-    to: OrderState::Processing,
-    guard: fn (Order $order) => $order->total > 0
-)
+->state(OrderState::Pending, function (StateBuilder $state) {
+    $state->on('process')
+        ->target(OrderState::Processing)
+        ->guard(fn (Order $order) => $order->total > 0);
+})
 ```
 
 When a guard fails, `canTransitionTo()` / `canSend()` returns false and `transitionTo()` / `send()` throws `InvalidStateTransitionException`.
@@ -244,7 +254,7 @@ $order->state->send('process', [
 ## State Introspection
 
 ```php
-$order->state->value();         // OrderState::Pending (the enum)
+$order->state->current();         // OrderState::Pending (the enum)
 $order->state->is(OrderState::Pending); // true
 $order->state->isFinal();       // false
 $order->state->stateMachine();  // StateMachine instance

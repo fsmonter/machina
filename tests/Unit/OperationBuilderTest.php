@@ -5,19 +5,23 @@ declare(strict_types=1);
 use Machina\Operation;
 use Tests\TestState;
 
-it('registers transition in graph when operation has to', function () {
+it('registers transition in graph when operation has target', function () {
     $machine = machina()
-        ->on('start', from: TestState::Pending, to: TestState::Processing)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('start')->target(TestState::Processing);
+        })
         ->final(TestState::Completed)
         ->build(TestState::class);
 
     expect($machine->getTransitions(TestState::Pending))->toContain(TestState::Processing);
 });
 
-it('creates state-bound operation without to', function () {
+it('creates state-bound operation without target', function () {
     $machine = machina()
-        ->on('notify', from: TestState::Pending, action: fn () => null)
-        ->on('start', from: TestState::Pending, to: TestState::Processing)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('notify')->action(fn () => null);
+            $state->on('start')->target(TestState::Processing);
+        })
         ->build(TestState::class);
 
     $op = $machine->findOperation(TestState::Pending, 'notify');
@@ -31,7 +35,9 @@ it('attaches guard to operation', function () {
     $guard = fn () => true;
 
     $machine = machina()
-        ->on('start', from: TestState::Pending, to: TestState::Processing, guard: $guard)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($guard) {
+            $state->on('start')->target(TestState::Processing)->guard($guard);
+        })
         ->build(TestState::class);
 
     $op = $machine->findOperation(TestState::Pending, 'start');
@@ -39,10 +45,12 @@ it('attaches guard to operation', function () {
     expect($op->guards)->toHaveCount(1);
 });
 
-it('supports multiple operations on the same from state', function () {
+it('supports multiple operations on the same state', function () {
     $machine = machina()
-        ->on('start', from: TestState::Pending, to: TestState::Processing)
-        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('start')->target(TestState::Processing);
+            $state->on('cancel')->target(TestState::Cancelled);
+        })
         ->build(TestState::class);
 
     expect($machine->getOperations(TestState::Pending))->toHaveCount(2);
@@ -50,16 +58,22 @@ it('supports multiple operations on the same from state', function () {
     expect($machine->findOperation(TestState::Pending, 'cancel'))->not->toBeNull();
 });
 
-it('rejects duplicate operation names on the same from state', function () {
+it('rejects duplicate operation names on the same state', function () {
     machina()
-        ->on('start', from: TestState::Pending, to: TestState::Processing)
-        ->on('start', from: TestState::Pending, to: TestState::Cancelled);
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('start')->target(TestState::Processing);
+            $state->on('start')->target(TestState::Cancelled);
+        });
 })->throws(InvalidArgumentException::class, "Duplicate operation 'start' for state pending");
 
-it('allows same operation name on different from states', function () {
+it('allows same operation name on different states', function () {
     $machine = machina()
-        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled)
-        ->on('cancel', from: TestState::Processing, to: TestState::Cancelled)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('cancel')->target(TestState::Cancelled);
+        })
+        ->state(TestState::Processing, function (Machina\StateBuilder $state) {
+            $state->on('cancel')->target(TestState::Cancelled);
+        })
         ->build(TestState::class);
 
     expect($machine->findOperation(TestState::Pending, 'cancel'))->not->toBeNull();
@@ -70,7 +84,9 @@ it('attaches action to operation', function () {
     $actionFn = fn () => null;
 
     $machine = machina()
-        ->on('start', from: TestState::Pending, to: TestState::Processing, action: $actionFn)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($actionFn) {
+            $state->on('start')->target(TestState::Processing)->action($actionFn);
+        })
         ->build(TestState::class);
 
     $op = $machine->findOperation(TestState::Pending, 'start');
@@ -80,8 +96,10 @@ it('attaches action to operation', function () {
 
 it('accepts guard as array of closures', function () {
     $machine = machina()
-        ->on('start', from: TestState::Pending, to: TestState::Processing,
-            guard: [fn () => true, fn () => false])
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('start')->target(TestState::Processing)
+                ->guard([fn () => true, fn () => false]);
+        })
         ->build(TestState::class);
 
     $op = $machine->findOperation(TestState::Pending, 'start');

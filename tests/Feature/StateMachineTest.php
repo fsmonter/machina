@@ -7,7 +7,10 @@ use Illuminate\Support\Facades\Event;
 use Machina\Events\StateTransitioned;
 use Machina\Exceptions\InvalidStateTransitionException;
 use Machina\State;
+use Machina\StateMachine;
 use Tests\Stubs\TestCustomEventMachina;
+use Tests\Stubs\TestTransitionEvent;
+use Tests\TestIntState;
 use Tests\TestState;
 use Workbench\App\Models\TestModel;
 
@@ -17,13 +20,13 @@ beforeEach(function () {
 
 it('returns a State value object from the cast', function () {
     expect($this->model->state)->toBeInstanceOf(State::class);
-    expect($this->model->state->value())->toBe(TestState::Pending);
+    expect($this->model->state->current())->toBe(TestState::Pending);
 });
 
 it('transitions to a valid state and persists to DB', function () {
     $this->model->state->transitionTo(TestState::Processing);
 
-    expect($this->model->fresh()->state->value())->toBe(TestState::Processing);
+    expect($this->model->fresh()->state->current())->toBe(TestState::Processing);
 });
 
 it('throws on invalid transitions', function () {
@@ -75,7 +78,7 @@ it('merges additional data during transition', function () {
     $this->model->state->transitionTo(TestState::Processing, ['notes' => 'Started processing']);
 
     $fresh = $this->model->fresh();
-    expect($fresh->state->value())->toBe(TestState::Processing);
+    expect($fresh->state->current())->toBe(TestState::Processing);
     expect($fresh->notes)->toBe('Started processing');
 });
 
@@ -104,7 +107,7 @@ it('fires custom event when eventClass is overridden', function () {
 
     $model->state->transitionTo(TestState::Processing);
 
-    Event::assertDispatched(\Tests\Stubs\TestTransitionEvent::class);
+    Event::assertDispatched(TestTransitionEvent::class);
     Event::assertNotDispatched(StateTransitioned::class);
 });
 
@@ -112,14 +115,14 @@ it('transitions through a complete workflow', function () {
     $this->model->state->transitionTo(TestState::Processing);
     $this->model->state->transitionTo(TestState::Completed);
 
-    expect($this->model->fresh()->state->value())->toBe(TestState::Completed);
+    expect($this->model->fresh()->state->current())->toBe(TestState::Completed);
     expect($this->model->state->isFinal())->toBeTrue();
 });
 
 it('exposes the state machine instance', function () {
     $sm = $this->model->state->stateMachine();
 
-    expect($sm)->toBeInstanceOf(\Machina\StateMachine::class);
+    expect($sm)->toBeInstanceOf(StateMachine::class);
     expect($sm->canTransition(TestState::Pending, TestState::Processing))->toBeTrue();
 });
 
@@ -133,8 +136,8 @@ it('rolls back state on failed transition within transaction', function () {
     } catch (InvalidStateTransitionException) {
     }
 
-    expect($this->model->fresh()->state->value())->toBe(TestState::Processing);
-    expect($this->model->state->value())->toBe(TestState::Pending);
+    expect($this->model->fresh()->state->current())->toBe(TestState::Processing);
+    expect($this->model->state->current())->toBe(TestState::Pending);
 });
 
 it('compares state with is()', function () {
@@ -148,17 +151,17 @@ it('converts to string', function () {
 
 it('rejects raw string values in set()', function () {
     expect(fn () => $this->model->fill(['state' => 'processing']))
-        ->toThrow(\InvalidArgumentException::class, 'enum instance');
+        ->toThrow(InvalidArgumentException::class, 'enum instance');
 });
 
 it('rejects raw integer values in set()', function () {
     expect(fn () => $this->model->fill(['state' => 1]))
-        ->toThrow(\InvalidArgumentException::class, 'enum instance');
+        ->toThrow(InvalidArgumentException::class, 'enum instance');
 });
 
 it('rejects foreign enum values in set()', function () {
-    expect(fn () => $this->model->fill(['state' => \Tests\TestIntState::Pending]))
-        ->toThrow(\InvalidArgumentException::class, 'enum instance');
+    expect(fn () => $this->model->fill(['state' => TestIntState::Pending]))
+        ->toThrow(InvalidArgumentException::class, 'enum instance');
 });
 
 it('accepts valid enum values in set()', function () {
@@ -183,7 +186,7 @@ it('syncs in-memory model via forceFill even when column is guarded', function (
     $model->state->transitionTo(TestState::Processing, ['notes' => 'Updated']);
 
     // In-memory model should reflect the new state and additional data
-    expect($model->state->value())->toBe(TestState::Processing);
+    expect($model->state->current())->toBe(TestState::Processing);
     expect($model->notes)->toBe('Updated');
 });
 
@@ -195,6 +198,6 @@ it('uses the model database connection for transactions', function () {
     $this->model->state->transitionTo(TestState::Processing);
 
     $fresh = $this->model->fresh();
-    expect($fresh->state->value())->toBe(TestState::Processing);
+    expect($fresh->state->current())->toBe(TestState::Processing);
     expect($fresh->getConnectionName())->toBe($this->model->getConnectionName());
 });

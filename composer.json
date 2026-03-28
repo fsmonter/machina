@@ -1,6 +1,7 @@
 {
     "name": "fsmonter/machina",
     "description": "Fluent enum-powered state machines for Laravel",
+    "homepage": "https://github.com/fsmonter/machina",
     "keywords": ["laravel", "state-machine", "eloquent", "state", "enum", "php-enum"],
     "license": "MIT",
     "type": "library",
@@ -44,6 +45,10 @@
         "allow-plugins": {
             "pestphp/pest-plugin": true
         }
+    },
+    "support": {
+        "issues": "https://github.com/fsmonter/machina/issues",
+        "source": "https://github.com/fsmonter/machina"
     },
     "extra": {
         "laravel": {

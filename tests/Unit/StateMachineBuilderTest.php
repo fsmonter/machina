@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Machina\StateMachine;
 use Machina\StateMachineBuilder;
+use Tests\TestIntState;
 use Tests\TestState;
 
 it('builds a simple state machine with transition()', function () {
@@ -143,7 +144,7 @@ it('returns null initial state when not set', function () {
 
 it('validates initial state enum class consistency', function () {
     machina()
-        ->initial(\Tests\TestIntState::Pending)
+        ->initial(TestIntState::Pending)
         ->transition(from: TestState::Pending, to: TestState::Processing)
         ->build();
 })->throws(InvalidArgumentException::class, 'All states must be the same enum type');
@@ -171,10 +172,12 @@ it('deserializes without initial state', function () {
     expect($machine->initialState())->toBeNull();
 });
 
-it('builds operations with on()', function () {
+it('builds operations with state()', function () {
     $sm = machina()
-        ->on('process', from: TestState::Pending, to: TestState::Processing)
-        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('process')->target(TestState::Processing);
+            $state->on('cancel')->target(TestState::Cancelled);
+        })
         ->build();
 
     expect($sm->canTransition(TestState::Pending, TestState::Processing))->toBeTrue();
@@ -187,8 +190,10 @@ it('builds operations with guard and action', function () {
     $actionFn = fn () => null;
 
     $sm = machina()
-        ->on('process', from: TestState::Pending, to: TestState::Processing,
-            guard: $guardFn, action: $actionFn)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($guardFn, $actionFn) {
+            $state->on('process')->target(TestState::Processing)
+                ->guard($guardFn)->action($actionFn);
+        })
         ->build();
 
     $op = $sm->findOperation(TestState::Pending, 'process');
@@ -198,19 +203,23 @@ it('builds operations with guard and action', function () {
 
 it('accepts guard as array of closures', function () {
     $sm = machina()
-        ->on('process', from: TestState::Pending, to: TestState::Processing,
-            guard: [fn () => true, fn () => true])
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('process')->target(TestState::Processing)
+                ->guard([fn () => true, fn () => true]);
+        })
         ->build();
 
     $op = $sm->findOperation(TestState::Pending, 'process');
     expect($op->guards)->toHaveCount(2);
 });
 
-it('builds state-bound operations without to', function () {
+it('builds state-bound operations without target', function () {
     $actionFn = fn () => null;
 
     $sm = machina()
-        ->on('notify', from: TestState::Pending, action: $actionFn)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) use ($actionFn) {
+            $state->on('notify')->action($actionFn);
+        })
         ->transition(from: TestState::Pending, to: TestState::Processing)
         ->build();
 
@@ -219,16 +228,22 @@ it('builds state-bound operations without to', function () {
     expect($op->action)->toBe($actionFn);
 });
 
-it('rejects duplicate operation names on the same state', function () {
+it('rejects duplicate operation names within same state()', function () {
     machina()
-        ->on('process', from: TestState::Pending, to: TestState::Processing)
-        ->on('process', from: TestState::Pending, to: TestState::Cancelled);
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('process')->target(TestState::Processing);
+            $state->on('process')->target(TestState::Cancelled);
+        });
 })->throws(InvalidArgumentException::class, "Duplicate operation 'process' for state pending");
 
 it('allows same operation name on different states', function () {
     $sm = machina()
-        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled)
-        ->on('cancel', from: TestState::Processing, to: TestState::Cancelled)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('cancel')->target(TestState::Cancelled);
+        })
+        ->state(TestState::Processing, function (Machina\StateBuilder $state) {
+            $state->on('cancel')->target(TestState::Cancelled);
+        })
         ->build();
 
     expect($sm->findOperation(TestState::Pending, 'cancel'))->not->toBeNull();
@@ -241,11 +256,13 @@ it('rejects transitions from final states', function () {
         ->transition(from: TestState::Completed, to: TestState::Processing);
 })->throws(InvalidArgumentException::class, 'Cannot define transitions from final state completed');
 
-it('rejects operations from final states', function () {
+it('rejects state() on final states', function () {
     machina()
         ->final(TestState::Completed)
-        ->on('retry', from: TestState::Completed, to: TestState::Processing);
-})->throws(InvalidArgumentException::class, 'Cannot define transitions from final state completed');
+        ->state(TestState::Completed, function (Machina\StateBuilder $state) {
+            $state->on('retry')->target(TestState::Processing);
+        });
+})->throws(InvalidArgumentException::class, 'Cannot define operations from final state completed');
 
 it('rejects marking a state as final after defining transitions from it', function () {
     machina()
@@ -255,18 +272,22 @@ it('rejects marking a state as final after defining transitions from it', functi
 
 it('rejects marking a state as final after defining operations from it', function () {
     machina()
-        ->on('archive', from: TestState::Completed)
+        ->state(TestState::Completed, function (Machina\StateBuilder $state) {
+            $state->on('archive');
+        })
         ->final(TestState::Completed);
 })->throws(InvalidArgumentException::class, 'Cannot mark state completed as final after defining operations from it');
 
 it('validates enum types in transition()', function () {
     machina()
-        ->transition(from: TestState::Pending, to: \Tests\TestIntState::Pending);
+        ->transition(from: TestState::Pending, to: TestIntState::Pending);
 })->throws(InvalidArgumentException::class, 'All states must be the same enum type');
 
-it('validates enum types in on()', function () {
+it('validates enum types in state() targets', function () {
     machina()
-        ->on('x', from: TestState::Pending, to: \Tests\TestIntState::Pending);
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('x')->target(TestIntState::Processing);
+        });
 })->throws(InvalidArgumentException::class, 'All states must be the same enum type');
 
 it('supports transition() with single guard', function () {
@@ -287,9 +308,11 @@ it('supports transition() with guard array', function () {
     expect($sm->canTransition(TestState::Pending, TestState::Processing))->toBeFalse();
 });
 
-it('mixes on() and transition() on the same builder', function () {
+it('mixes state() and transition() on the same builder', function () {
     $sm = machina()
-        ->on('process', from: TestState::Pending, to: TestState::Processing)
+        ->state(TestState::Pending, function (Machina\StateBuilder $state) {
+            $state->on('process')->target(TestState::Processing);
+        })
         ->transition(from: TestState::Processing, to: TestState::Completed)
         ->final(TestState::Completed)
         ->build();

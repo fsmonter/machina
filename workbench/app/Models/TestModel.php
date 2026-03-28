@@ -6,6 +6,7 @@ namespace Workbench\App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Machina\HasStateMachine;
+use Machina\Machina;
 use Tests\Stubs\TestStateMachine;
 
 class TestModel extends Model
@@ -16,7 +17,7 @@ class TestModel extends Model
 
     protected $guarded = [];
 
-    /** @var array<string, class-string<\Machina\Machina>> */
+    /** @var array<string, class-string<Machina>> */
     protected $stateMachines = [
         'state' => TestStateMachine::class,
     ];

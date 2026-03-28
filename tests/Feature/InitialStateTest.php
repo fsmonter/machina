@@ -16,7 +16,7 @@ it('auto-sets initial state when creating a model without state', function () {
     };
     $model->save();
 
-    expect($model->fresh()->state->value())->toBe(TestState::Pending);
+    expect($model->fresh()->state->current())->toBe(TestState::Pending);
 });
 
 it('does not override an explicitly set state', function () {
@@ -28,7 +28,7 @@ it('does not override an explicitly set state', function () {
     };
     $model->save();
 
-    expect($model->fresh()->state->value())->toBe(TestState::Processing);
+    expect($model->fresh()->state->current())->toBe(TestState::Processing);
 });
 
 it('does not auto-set state when machina has no initial state', function () {
