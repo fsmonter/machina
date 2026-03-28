@@ -47,7 +47,9 @@
     },
     "extra": {
         "laravel": {
-            "providers": []
+            "providers": [
+                "Machina\\MachinaServiceProvider"
+            ]
         }
     },
     "scripts": {
