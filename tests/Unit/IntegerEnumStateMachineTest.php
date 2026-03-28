@@ -3,13 +3,13 @@
 declare(strict_types=1);
 
 use Machina\StateMachine;
-use Machina\StateMachineBuilder;
 use Tests\TestIntState;
 
 it('supports integer-backed enums via builder', function () {
-    $sm = (new StateMachineBuilder)
-        ->from(TestIntState::Pending)->to(TestIntState::Processing)
-        ->from(TestIntState::Processing)->to(TestIntState::Completed, TestIntState::Failed)
+    $sm = machina()
+        ->transition(from: TestIntState::Pending, to: TestIntState::Processing)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Completed)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Failed)
         ->final(TestIntState::Completed, TestIntState::Failed)
         ->build();
 
@@ -21,9 +21,10 @@ it('supports integer-backed enums via builder', function () {
 });
 
 it('serializes and deserializes integer-backed enums', function () {
-    $sm = (new StateMachineBuilder)
-        ->from(TestIntState::Pending)->to(TestIntState::Processing)
-        ->from(TestIntState::Processing)->to(TestIntState::Completed, TestIntState::Failed)
+    $sm = machina()
+        ->transition(from: TestIntState::Pending, to: TestIntState::Processing)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Completed)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Failed)
         ->final(TestIntState::Completed, TestIntState::Failed)
         ->build();
 
@@ -43,9 +44,10 @@ it('serializes and deserializes integer-backed enums', function () {
 });
 
 it('gets transitions for integer-backed enums', function () {
-    $sm = (new StateMachineBuilder)
-        ->from(TestIntState::Pending)->to(TestIntState::Processing)
-        ->from(TestIntState::Processing)->to(TestIntState::Completed, TestIntState::Failed)
+    $sm = machina()
+        ->transition(from: TestIntState::Pending, to: TestIntState::Processing)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Completed)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Failed)
         ->build();
 
     expect($sm->getTransitions(TestIntState::Pending))->toBe([TestIntState::Processing]);
@@ -54,9 +56,9 @@ it('gets transitions for integer-backed enums', function () {
 });
 
 it('gets source states for integer-backed enums', function () {
-    $sm = (new StateMachineBuilder)
-        ->from(TestIntState::Pending)->to(TestIntState::Processing)
-        ->from(TestIntState::Processing)->to(TestIntState::Completed)
+    $sm = machina()
+        ->transition(from: TestIntState::Pending, to: TestIntState::Processing)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Completed)
         ->build();
 
     expect($sm->getSourceStates(TestIntState::Processing))->toBe([TestIntState::Pending]);
@@ -64,9 +66,9 @@ it('gets source states for integer-backed enums', function () {
 });
 
 it('gets all states for integer-backed enums', function () {
-    $sm = (new StateMachineBuilder)
-        ->from(TestIntState::Pending)->to(TestIntState::Processing)
-        ->from(TestIntState::Processing)->to(TestIntState::Completed)
+    $sm = machina()
+        ->transition(from: TestIntState::Pending, to: TestIntState::Processing)
+        ->transition(from: TestIntState::Processing, to: TestIntState::Completed)
         ->build();
 
     $allStates = $sm->getAllStates();

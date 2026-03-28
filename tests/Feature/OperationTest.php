@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Machina\Exceptions\InvalidStateTransitionException;
-use Tests\Stubs\TestOperationCast;
+use Tests\Stubs\TestOperationMachina;
 use Tests\TestState;
 use Workbench\App\Models\TestModel;
 
@@ -11,8 +11,8 @@ function createOperationModel(string|TestState $state = TestState::Pending, arra
 {
     $model = new class(array_merge(['state' => $state], $attrs)) extends TestModel
     {
-        protected $casts = [
-            'state' => TestOperationCast::class,
+        protected $stateMachines = [
+            'state' => TestOperationMachina::class,
         ];
     };
     $model->save();
@@ -21,8 +21,8 @@ function createOperationModel(string|TestState $state = TestState::Pending, arra
 }
 
 beforeEach(function () {
-    TestOperationCast::$contactCalled = false;
-    TestOperationCast::$smsCalled = false;
+    TestOperationMachina::$contactCalled = false;
+    TestOperationMachina::$smsCalled = false;
 });
 
 it('performs a transition via send()', function () {
@@ -38,7 +38,7 @@ it('runs do() closure after transition', function () {
 
     $model->state->send('contact');
 
-    expect(TestOperationCast::$contactCalled)->toBeTrue();
+    expect(TestOperationMachina::$contactCalled)->toBeTrue();
 });
 
 it('runs do() without transition for state-bound operations', function () {
@@ -46,7 +46,7 @@ it('runs do() without transition for state-bound operations', function () {
 
     $model->state->send('sms');
 
-    expect(TestOperationCast::$smsCalled)->toBeTrue();
+    expect(TestOperationMachina::$smsCalled)->toBeTrue();
     expect($model->fresh()->state->value())->toBe(TestState::Processing);
 });
 
@@ -81,7 +81,7 @@ it('supports __call for send', function () {
     $model->state->contact();
 
     expect($model->fresh()->state->value())->toBe(TestState::Processing);
-    expect(TestOperationCast::$contactCalled)->toBeTrue();
+    expect(TestOperationMachina::$contactCalled)->toBeTrue();
 });
 
 it('supports __call for canSend', function () {
@@ -96,12 +96,12 @@ it('throws for undefined operation', function () {
     $model = createOperationModel();
 
     expect(fn () => $model->state->send('nonexistent'))
-        ->toThrow(InvalidStateTransitionException::class, "not defined for state");
+        ->toThrow(InvalidStateTransitionException::class, 'not defined for state');
 });
 
 it('throws for operation on wrong state', function () {
     $model = createOperationModel();
 
     expect(fn () => $model->state->send('complete'))
-        ->toThrow(InvalidStateTransitionException::class, "not defined for state");
+        ->toThrow(InvalidStateTransitionException::class, 'not defined for state');
 });

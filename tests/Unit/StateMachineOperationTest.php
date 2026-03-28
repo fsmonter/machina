@@ -7,12 +7,10 @@ use Tests\TestState;
 
 beforeEach(function () {
     $this->machine = machina()
-        ->from(TestState::Pending)
-            ->on('start')->to(TestState::Processing)
-            ->on('cancel')->to(TestState::Cancelled)
-                ->guard(fn ($model) => $model?->canCancel ?? true)
-        ->from(TestState::Processing)
-            ->on('complete')->to(TestState::Completed)
+        ->on('start', from: TestState::Pending, to: TestState::Processing)
+        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled,
+            guard: fn ($model) => $model?->canCancel ?? true)
+        ->on('complete', from: TestState::Processing, to: TestState::Completed)
         ->final(TestState::Completed, TestState::Cancelled)
         ->build(TestState::class);
 });
@@ -47,10 +45,9 @@ it('canSend returns false for undefined operation', function () {
 
 it('canSend returns false when transition guards block operation target', function () {
     $machine = machina()
-        ->from(TestState::Pending)->to(TestState::Processing)
-            ->guard(fn () => false)
-        ->from(TestState::Pending)
-            ->on('start')->to(TestState::Processing)
+        ->transition(from: TestState::Pending, to: TestState::Processing,
+            guard: fn () => false)
+        ->on('start', from: TestState::Pending, to: TestState::Processing)
         ->build(TestState::class);
 
     expect($machine->canTransition(TestState::Pending, TestState::Processing))->toBeFalse();

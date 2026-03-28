@@ -160,3 +160,18 @@ it('handles non-existent state transitions', function () {
     $transitions = $this->stateMachine->getTransitions(TestState::Failed);
     expect($transitions)->toEqual([]);
 });
+
+it('detects terminal states even with partial final declarations', function () {
+    // Only declare Completed as final, but Failed and Cancelled also have no outgoing transitions
+    $stateMachine = new StateMachine(
+        TestState::class,
+        $this->transitions,
+        [TestState::Completed],
+    );
+
+    expect($stateMachine->isFinal(TestState::Completed))->toBeTrue();
+    expect($stateMachine->isFinal(TestState::Failed))->toBeTrue();
+    expect($stateMachine->isFinal(TestState::Cancelled))->toBeTrue();
+    expect($stateMachine->isFinal(TestState::Pending))->toBeFalse();
+    expect($stateMachine->isFinal(TestState::Processing))->toBeFalse();
+});

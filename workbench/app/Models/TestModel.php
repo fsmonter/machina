@@ -5,15 +5,19 @@ declare(strict_types=1);
 namespace Workbench\App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Tests\Stubs\TestStateMachineCast;
+use Machina\HasStateMachine;
+use Tests\Stubs\TestStateMachine;
 
 class TestModel extends Model
 {
+    use HasStateMachine;
+
     protected $table = 'test_models';
 
     protected $guarded = [];
 
-    protected $casts = [
-        'state' => TestStateMachineCast::class,
+    /** @var array<string, class-string<\Machina\Machina>> */
+    protected $stateMachines = [
+        'state' => TestStateMachine::class,
     ];
 }

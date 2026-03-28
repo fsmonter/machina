@@ -5,73 +5,28 @@ declare(strict_types=1);
 namespace Machina;
 
 use BackedEnum;
-use Illuminate\Contracts\Database\Eloquent\CastsAttributes;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 use Machina\Events\StateTransitioned;
 use Machina\Exceptions\InvalidStateTransitionException;
 
-/**
- * @implements CastsAttributes<State, mixed>
- */
-abstract class StateMachineCast implements CastsAttributes
+abstract class Machina
 {
-    /** @var class-string<BackedEnum> */
-    protected string $enum;
-
-    public bool $withoutObjectCaching = true;
-
-    /** @var array<class-string<self>, StateMachine> */
+    /** @var array<class-string<static>, StateMachine> */
     private static array $compiledMachines = [];
 
     abstract public function transitions(): StateMachineBuilder;
 
     /**
-     * @param  array<string, mixed>  $attributes
+     * @return class-string<BackedEnum>
      */
-    public function get(Model $model, string $key, mixed $value, array $attributes): ?State
+    public function getEnumClass(): string
     {
-        if ($value === null) {
-            return null;
-        }
-
-        /** @var int|string $value */
-        $enum = ($this->enum)::from($value);
-
-        return new State($enum, $model, $key, $this);
-    }
-
-    /**
-     * @param  array<string, mixed>  $attributes
-     */
-    public function set(Model $model, string $key, mixed $value, array $attributes): string|int|null
-    {
-        if ($value === null) {
-            return null;
-        }
-
-        if ($value instanceof State) {
-            $value = $value->value();
-        }
-
-        if (! $value instanceof BackedEnum) {
-            throw new \InvalidArgumentException(
-                "Value must be a {$this->enum} enum instance, got ".get_debug_type($value)
-            );
-        }
-
-        if (! $value instanceof $this->enum) {
-            throw new \InvalidArgumentException(
-                "Value must be a {$this->enum} enum instance, got ".$value::class
-            );
-        }
-
-        return $value->value;
+        return $this->stateMachine()->enumClass();
     }
 
     public function stateMachine(): StateMachine
     {
-        return self::$compiledMachines[static::class] ??= $this->transitions()->build($this->enum);
+        return self::$compiledMachines[static::class] ??= $this->transitions()->build();
     }
 
     /**
@@ -79,7 +34,9 @@ abstract class StateMachineCast implements CastsAttributes
      */
     public function performTransition(Model $model, string $column, BackedEnum $oldState, BackedEnum $newState, array $additionalData = []): bool
     {
-        DB::transaction(function () use ($model, $column, $oldState, $newState, $additionalData) {
+        $connection = $model->getConnection();
+
+        $connection->transaction(function () use ($connection, $model, $column, $oldState, $newState, $additionalData) {
             if (! $this->stateMachine()->canTransition($oldState, $newState, $model)) {
                 throw new InvalidStateTransitionException(
                     "Cannot transition from {$oldState->value} to {$newState->value}"
@@ -101,9 +58,9 @@ abstract class StateMachineCast implements CastsAttributes
                 );
             }
 
-            $model->fill([$column => $newState] + $additionalData)->syncOriginal();
+            $model->forceFill([$column => $newState] + $additionalData)->syncOriginal();
 
-            DB::afterCommit(function () use ($model, $oldState, $newState) {
+            $connection->afterCommit(function () use ($model, $oldState, $newState) {
                 $eventClass = $this->eventClass();
                 event(new $eventClass($model, $oldState, $newState));
             });
@@ -129,7 +86,7 @@ abstract class StateMachineCast implements CastsAttributes
 
         if ($operation === null) {
             throw new InvalidStateTransitionException(
-                "Operation '{$operationName}' is not defined for state {$currentState->value}"
+                "Operation '{$operationName}' is not defined for current state {$currentState->value}"
             );
         }
 
@@ -145,8 +102,8 @@ abstract class StateMachineCast implements CastsAttributes
             $this->performTransition($model, $column, $currentState, $operation->to, $additionalData);
         }
 
-        if ($operation->do !== null) {
-            ($operation->do)($model);
+        if ($operation->action !== null) {
+            ($operation->action)($model);
         }
 
         return true;

@@ -14,7 +14,7 @@ class State implements Stringable
         private readonly BackedEnum $value,
         private readonly Model $model,
         private readonly string $column,
-        private readonly StateMachineCast $cast,
+        private readonly Machina $machina,
     ) {}
 
     /**
@@ -22,12 +22,12 @@ class State implements Stringable
      */
     public function transitionTo(BackedEnum $newState, array $additionalData = []): bool
     {
-        return $this->cast->performTransition($this->model, $this->column, $this->value, $newState, $additionalData);
+        return $this->machina->performTransition($this->model, $this->column, $this->value, $newState, $additionalData);
     }
 
     public function canTransitionTo(BackedEnum $targetState): bool
     {
-        return $this->cast->stateMachine()->canTransition($this->value, $targetState, $this->model);
+        return $this->machina->stateMachine()->canTransition($this->value, $targetState, $this->model);
     }
 
     /**
@@ -35,7 +35,7 @@ class State implements Stringable
      */
     public function allowedTransitions(): array
     {
-        $machine = $this->cast->stateMachine();
+        $machine = $this->machina->stateMachine();
 
         return array_values(array_filter(
             $machine->getTransitions($this->value),
@@ -45,7 +45,7 @@ class State implements Stringable
 
     public function isFinal(): bool
     {
-        return $this->cast->stateMachine()->isFinal($this->value);
+        return $this->machina->stateMachine()->isFinal($this->value);
     }
 
     public function is(BackedEnum $state): bool
@@ -60,7 +60,7 @@ class State implements Stringable
 
     public function stateMachine(): StateMachine
     {
-        return $this->cast->stateMachine();
+        return $this->machina->stateMachine();
     }
 
     /**
@@ -68,12 +68,12 @@ class State implements Stringable
      */
     public function send(string $operation, array $additionalData = []): bool
     {
-        return $this->cast->performOperation($this->model, $this->column, $this->value, $operation, $additionalData);
+        return $this->machina->performOperation($this->model, $this->column, $this->value, $operation, $additionalData);
     }
 
     public function canSend(string $operation): bool
     {
-        return $this->cast->stateMachine()->canSend($this->value, $operation, $this->model);
+        return $this->machina->stateMachine()->canSend($this->value, $operation, $this->model);
     }
 
     /**
@@ -84,8 +84,8 @@ class State implements Stringable
         return array_values(array_map(
             fn (Operation $op) => $op->name,
             array_filter(
-                $this->cast->stateMachine()->getOperations($this->value),
-                fn (Operation $op) => $this->cast->stateMachine()->canSend($this->value, $op->name, $this->model),
+                $this->machina->stateMachine()->getOperations($this->value),
+                fn (Operation $op) => $this->machina->stateMachine()->canSend($this->value, $op->name, $this->model),
             ),
         ));
     }

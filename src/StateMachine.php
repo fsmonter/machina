@@ -6,7 +6,6 @@ namespace Machina;
 
 use BackedEnum;
 use Closure;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * Compiled state machine for efficient transition lookups
@@ -32,6 +31,7 @@ class StateMachine
         private readonly array $finalStates = [],
         private readonly array $guards = [],
         private readonly array $operations = [],
+        private readonly ?BackedEnum $initialState = null,
     ) {
         $index = [];
         foreach ($this->finalStates as $state) {
@@ -49,23 +49,33 @@ class StateMachine
     }
 
     /**
-     * Check if a transition from source to target state is valid
+     * @return class-string<BackedEnum>
      */
-    public function canTransition(BackedEnum $from, BackedEnum $target, ?Model $model = null): bool
+    public function enumClass(): string
+    {
+        return $this->enumClass;
+    }
+
+    public function initialState(): ?BackedEnum
+    {
+        return $this->initialState;
+    }
+
+    public function canTransition(BackedEnum $from, BackedEnum $target, ?object $context = null): bool
     {
         if (! in_array($target, $this->getTransitions($from), true)) {
             return false;
         }
 
-        return $this->evaluateGuards($from, $target, $model);
+        return $this->evaluateGuards($from, $target, $context);
     }
 
-    private function evaluateGuards(BackedEnum $from, BackedEnum $target, ?Model $model = null): bool
+    private function evaluateGuards(BackedEnum $from, BackedEnum $target, ?object $context = null): bool
     {
         $guards = $this->guards[$from->value][$target->value] ?? [];
 
         foreach ($guards as $guard) {
-            if (! $guard($model)) {
+            if (! $guard($context)) {
                 return false;
             }
         }
@@ -88,11 +98,8 @@ class StateMachine
      */
     public function isFinal(BackedEnum $state): bool
     {
-        if (! empty($this->finalStatesIndex)) {
-            return isset($this->finalStatesIndex[$state->value]);
-        }
-
-        return empty($this->getTransitions($state));
+        return isset($this->finalStatesIndex[$state->value])
+            || empty($this->getTransitions($state));
     }
 
     /**
@@ -143,7 +150,7 @@ class StateMachine
         return $this->operationsByName[$from->value][$name] ?? null;
     }
 
-    public function canSend(BackedEnum $from, string $name, ?Model $model = null): bool
+    public function canSend(BackedEnum $from, string $name, ?object $context = null): bool
     {
         $operation = $this->findOperation($from, $name);
 
@@ -151,12 +158,12 @@ class StateMachine
             return false;
         }
 
-        if ($operation->to !== null && ! $this->canTransition($from, $operation->to, $model)) {
+        if ($operation->to !== null && ! $this->canTransition($from, $operation->to, $context)) {
             return false;
         }
 
         foreach ($operation->guards as $guard) {
-            if (! $guard($model)) {
+            if (! $guard($context)) {
                 return false;
             }
         }
@@ -189,17 +196,23 @@ class StateMachine
         /** @var list<int|string> $finalStates */
         $finalStates = array_map(fn (BackedEnum $state): int|string => $state->value, $this->finalStates);
 
-        return [
+        $data = [
             'enum_class' => $this->enumClass,
             'transitions' => $export,
             'final_states' => $finalStates,
         ];
+
+        if ($this->initialState !== null) {
+            $data['initial_state'] = $this->initialState->value;
+        }
+
+        return $data;
     }
 
     /**
      * Create a StateMachine from exported array data
      *
-     * @param  array{enum_class: class-string<BackedEnum>, transitions: array<int|string, list<int|string>>, final_states?: list<int|string>}  $data
+     * @param  array{enum_class: class-string<BackedEnum>, transitions: array<int|string, list<int|string>>, final_states?: list<int|string>, initial_state?: int|string}  $data
      */
     public static function fromArray(array $data): self
     {
@@ -224,7 +237,13 @@ class StateMachine
             );
         }
 
-        return new self($enumClass, $transitions, $finalStates);
+        /** @var int|string|null $rawInitial */
+        $rawInitial = $data['initial_state'] ?? null;
+        $initialState = $rawInitial !== null
+            ? $enumClass::from($castValue($rawInitial))
+            : null;
+
+        return new self($enumClass, $transitions, $finalStates, initialState: $initialState);
     }
 
     /**

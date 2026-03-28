@@ -17,6 +17,6 @@ final class Operation
         public readonly BackedEnum $from,
         public readonly ?BackedEnum $to,
         public readonly array $guards = [],
-        public readonly ?Closure $do = null,
+        public readonly ?Closure $action = null,
     ) {}
 }

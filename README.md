@@ -10,7 +10,7 @@ composer require fsmonter/machina
 
 ## Quick Start
 
-### 1. Define your states as a backed enum
+### 1. Define states as a backed enum
 
 ```php
 enum OrderState: string
@@ -26,39 +26,44 @@ enum OrderState: string
 ### 2. Define a state machine
 
 ```php
+use Machina\Machina;
 use Machina\StateMachineBuilder;
-use Machina\StateMachineCast;
 
-class OrderStateCast extends StateMachineCast
+class OrderStateMachine extends Machina
 {
-    protected string $enum = OrderState::class;
-
     public function transitions(): StateMachineBuilder
     {
         return machina()
-            ->from(OrderState::Pending)
-                ->on('process')->to(OrderState::Processing)
-                    ->guard(fn (Order $order) => $order->total > 0)
-                    ->do(fn (Order $order) => $order->notify(new OrderProcessing))
-                ->on('cancel')->to(OrderState::Cancelled)
-
-            ->from(OrderState::Processing)
-                ->on('complete')->to(OrderState::Completed)
-                    ->do(fn (Order $order) => $order->update(['completed_at' => now()]))
-                ->on('fail')->to(OrderState::Failed)
-
+            ->initial(OrderState::Pending)
+            ->on('process',
+                from: OrderState::Pending,
+                to: OrderState::Processing,
+                guard: fn (Order $order) => $order->total > 0,
+                action: fn (Order $order) => $order->notify(new OrderProcessing)
+            )
+            ->on('cancel', from: OrderState::Pending, to: OrderState::Cancelled)
+            ->on('complete',
+                from: OrderState::Processing,
+                to: OrderState::Completed,
+                action: fn (Order $order) => $order->update(['completed_at' => now()])
+            )
+            ->on('fail', from: OrderState::Processing, to: OrderState::Failed)
             ->final(OrderState::Completed, OrderState::Failed, OrderState::Cancelled);
     }
 }
 ```
 
-### 3. Apply the cast to your model
+### 3. Add the trait to your model
 
 ```php
+use Machina\HasStateMachine;
+
 class Order extends Model
 {
-    protected $casts = [
-        'state' => OrderStateCast::class,
+    use HasStateMachine;
+
+    protected $stateMachines = [
+        'state' => OrderStateMachine::class,
     ];
 }
 ```
@@ -66,7 +71,7 @@ class Order extends Model
 ### 4. Use it
 
 ```php
-$order = Order::create(['state' => OrderState::Pending]);
+$order = Order::create(); // state auto-set to 'pending'
 
 // Send operations by name
 $order->state->send('process');
@@ -82,53 +87,84 @@ $order->state->canComplete();        // true
 $order->state->availableOperations(); // ['complete', 'fail']
 ```
 
+## Initial State
+
+Define an initial state with `initial()`. When a model is created without an explicit state value, the initial state is set automatically:
+
+```php
+Order::create();                                // state = OrderState::Pending
+Order::create(['state' => OrderState::Failed]); // state = OrderState::Failed (not overridden)
+```
+
 ## Operations
 
 Operations are the primary way to interact with state machines. They let you declare intent ("process this order") rather than specify target states ("go to processing").
 
 ```php
 machina()
-    ->from(LeadStatus::New)
-        ->on('contact')->to(LeadStatus::Contacted)
-            ->do(fn (Lead $lead) => $lead->logActivity('First contact made'))
-        ->on('disqualify')->to(LeadStatus::Lost)
-
-    ->from(LeadStatus::Contacted)
-        ->on('qualify')->to(LeadStatus::Qualified)
-            ->guard(fn (Lead $lead) => $lead->email !== null)
-            ->do(fn (Lead $lead) => $lead->notify(new LeadQualified))
-        ->on('sms')->do(fn (Lead $lead) => app(SmsService::class)->send($lead))
-        ->on('lose')->to(LeadStatus::Lost)
-
+    ->initial(LeadStatus::New)
+    ->on('contact',
+        from: LeadStatus::New,
+        to: LeadStatus::Contacted,
+        action: fn (Lead $lead) => $lead->logActivity('First contact made')
+    )
+    ->on('disqualify', from: LeadStatus::New, to: LeadStatus::Lost)
+    ->on('qualify',
+        from: LeadStatus::Contacted,
+        to: LeadStatus::Qualified,
+        guard: fn (Lead $lead) => $lead->email !== null,
+        action: fn (Lead $lead) => $lead->notify(new LeadQualified)
+    )
+    ->on('sms',
+        from: LeadStatus::Contacted,
+        action: fn (Lead $lead) => app(SmsService::class)->send($lead)
+    )
+    ->on('lose', from: LeadStatus::Contacted, to: LeadStatus::Lost)
     ->final(LeadStatus::Won, LeadStatus::Lost)
 ```
 
-**`on(string $name)`** defines an operation under the current `from()` state.
+**`on(string $name, from:, to:, guard:, action:)`** defines a named operation.
 
-**`to(BackedEnum $state)`** sets the target state for the operation. The transition is registered in the graph automatically.
-
-**`guard(Closure $guard)`** adds a condition that must pass before the operation can execute.
-
-**`do(Closure $action)`** attaches a side-effect that runs after the transition completes.
+- `from:` (required) the source state
+- `to:` (optional) the target state. Omit for state-bound operations
+- `guard:` (optional) a Closure or array of Closures that must all return true
+- `action:` (optional) a Closure that runs after the transition completes
 
 ### Execution order
 
-For operations with a transition: guard evaluation, atomic state transition, then `do()` closure.
+For operations with a transition: guard evaluation, atomic state transition, then `action` closure.
 
-For state-bound operations (no `to()`): guard evaluation, then `do()` closure. The state does not change.
+For state-bound operations (no `to:`): guard evaluation, then `action` closure. The state does not change.
+
+Note: `action` runs after the database transaction commits. If the closure throws, the state change is already persisted.
 
 ### State-bound operations
 
-An operation without `to()` runs its `do()` closure without changing state. Useful for actions that belong to a specific state but don't trigger a transition:
+An operation without `to:` runs its `action` closure without changing state. Useful for actions that belong to a specific state but don't trigger a transition:
 
 ```php
-->from(OrderState::Processing)
-    ->on('sendUpdate')->do(fn (Order $order) => $order->notifyCustomer())
+->on('sendUpdate',
+    from: OrderState::Processing,
+    action: fn (Order $order) => $order->notifyCustomer()
+)
 ```
 
 ## Direct Transitions
 
-You can also transition directly without operations:
+For simple state machines without named operations, use `transition()`:
+
+```php
+machina()
+    ->initial(OrderState::Pending)
+    ->transition(from: OrderState::Pending, to: OrderState::Processing)
+    ->transition(from: OrderState::Pending, to: OrderState::Cancelled)
+    ->transition(from: OrderState::Processing, to: OrderState::Completed,
+        guard: fn (Order $order) => $order->isPaid())
+    ->transition(from: OrderState::Processing, to: OrderState::Failed)
+    ->final(OrderState::Completed, OrderState::Failed, OrderState::Cancelled)
+```
+
+You can also use direct transitions on the model:
 
 ```php
 $order->state->transitionTo(OrderState::Processing);
@@ -136,31 +172,28 @@ $order->state->canTransitionTo(OrderState::Processing); // bool
 $order->state->allowedTransitions(); // [OrderState::Processing, OrderState::Cancelled]
 ```
 
-Direct transitions work with the standard builder syntax:
-
-```php
-machina()
-    ->from(OrderState::Pending)->to(OrderState::Processing, OrderState::Cancelled)
-    ->from(OrderState::Processing)->to(OrderState::Completed, OrderState::Failed)
-    ->final(OrderState::Completed, OrderState::Failed, OrderState::Cancelled)
-```
+`on()` and `transition()` can be mixed on the same builder.
 
 ## Transition Guards
 
 Guards add conditions to transitions. All guards must pass for the transition to proceed:
 
 ```php
-->from(OrderState::Pending)->to(OrderState::Processing)
-    ->guard(fn (Order $order) => $order->total > 0)
-    ->guard(fn (Order $order) => $order->items()->exists())
+->transition(from: OrderState::Pending, to: OrderState::Processing,
+    guard: [
+        fn (Order $order) => $order->total > 0,
+        fn (Order $order) => $order->items()->exists(),
+    ])
 ```
 
-When used with operations, guards are attached to the operation:
+On operations, guards are passed inline:
 
 ```php
-->from(OrderState::Pending)
-    ->on('process')->to(OrderState::Processing)
-        ->guard(fn (Order $order) => $order->total > 0)
+->on('process',
+    from: OrderState::Pending,
+    to: OrderState::Processing,
+    guard: fn (Order $order) => $order->total > 0
+)
 ```
 
 When a guard fails, `canTransitionTo()` / `canSend()` returns false and `transitionTo()` / `send()` throws `InvalidStateTransitionException`.
@@ -183,7 +216,7 @@ class HandleOrderTransition
 }
 ```
 
-To use a custom event class, override `eventClass()` in your cast:
+To use a custom event class, override `eventClass()` in your state machine:
 
 ```php
 protected function eventClass(): string
@@ -231,55 +264,11 @@ enum Priority: int
 }
 ```
 
-## Serialization
-
-State machines can be serialized for caching (transitions and final states only; guards and operations contain closures and are not serializable):
-
-```php
-$array = $order->state->stateMachine()->toArray();
-$restored = StateMachine::fromArray($array);
-```
-
 ## Concurrency Safety
 
-Transitions use atomic database updates with a WHERE clause on the current state, wrapped in a database transaction. If the state was modified between reading and writing, an `InvalidStateTransitionException` is thrown.
+Transitions use atomic database updates with a WHERE clause on the current state, wrapped in a database transaction using the model's own connection. If the state was modified between reading and writing, an `InvalidStateTransitionException` is thrown.
 
-## API Reference
-
-### State
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `send(string $operation, array $data = [])` | `bool` | Execute a named operation |
-| `canSend(string $operation)` | `bool` | Check if an operation is available |
-| `availableOperations()` | `array` | List operations available from current state |
-| `transitionTo(BackedEnum $state, array $data = [])` | `bool` | Direct transition to a state |
-| `canTransitionTo(BackedEnum $state)` | `bool` | Check if direct transition is allowed |
-| `allowedTransitions()` | `array` | Get valid target states |
-| `isFinal()` | `bool` | Check if current state is terminal |
-| `value()` | `BackedEnum` | Get the current state enum |
-| `is(BackedEnum $state)` | `bool` | Compare against a state |
-| `stateMachine()` | `StateMachine` | Get the compiled state machine |
-
-### StateMachine
-
-| Method | Returns | Description |
-|--------|---------|-------------|
-| `canTransition(BackedEnum $from, BackedEnum $to, ?Model $model = null)` | `bool` | Check transition validity |
-| `getTransitions(BackedEnum $from)` | `array` | Get allowed targets from state |
-| `findOperation(BackedEnum $from, string $name)` | `?Operation` | Look up an operation |
-| `canSend(BackedEnum $from, string $name, ?Model $model = null)` | `bool` | Check if operation is available |
-| `getOperations(BackedEnum $from)` | `array` | Get all operations for a state |
-| `isFinal(BackedEnum $state)` | `bool` | Check if state is terminal |
-| `getSourceStates(BackedEnum $target)` | `array` | Get states that can reach target |
-| `getAllStates()` | `array` | Get all states in the machine |
-| `toArray()` | `array` | Serialize for caching |
-| `fromArray(array $data)` | `StateMachine` | Restore from serialized data |
-
-## Requirements
-
-- PHP 8.1+
-- Laravel 10, 11, 12, or 13
+Note: Eloquent model events (`saving`, `updated`, etc.) are not fired during transitions. The raw query is intentional for atomicity.
 
 ## License
 

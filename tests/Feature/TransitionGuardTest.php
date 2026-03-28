@@ -3,8 +3,8 @@
 declare(strict_types=1);
 
 use Machina\Exceptions\InvalidStateTransitionException;
-use Tests\Stubs\TestGuardedCast;
-use Tests\Stubs\TestMultiGuardCast;
+use Tests\Stubs\TestGuardedMachina;
+use Tests\Stubs\TestMultiGuardMachina;
 use Tests\TestState;
 use Workbench\App\Models\TestModel;
 
@@ -12,8 +12,8 @@ function createGuardedModel(int $total): TestModel
 {
     $model = new class(['state' => TestState::Pending, 'total' => $total]) extends TestModel
     {
-        protected $casts = [
-            'state' => TestGuardedCast::class,
+        protected $stateMachines = [
+            'state' => TestGuardedMachina::class,
         ];
     };
     $model->save();
@@ -25,8 +25,8 @@ function createMultiGuardModel(int $total, bool $approved): TestModel
 {
     $model = new class(['state' => TestState::Pending, 'total' => $total, 'approved' => $approved]) extends TestModel
     {
-        protected $casts = [
-            'state' => TestMultiGuardCast::class,
+        protected $stateMachines = [
+            'state' => TestMultiGuardMachina::class,
         ];
     };
     $model->save();

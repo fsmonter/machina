@@ -13,171 +13,136 @@ use InvalidArgumentException;
  *
  * Usage:
  * machina()
- *     ->from(MyEnum::Pending)->to(MyEnum::Processing, MyEnum::Complete)
- *     ->from(MyEnum::Processing)->to(MyEnum::Complete, MyEnum::Failed)
- *     ->final(MyEnum::Complete, MyEnum::Failed)
- *     ->build(MyEnum::class);
+ *     ->initial(MyEnum::Pending)
+ *     ->on('process', from: MyEnum::Pending, to: MyEnum::Processing,
+ *         guard: fn ($model) => $model->total > 0,
+ *         action: fn ($model) => $model->notify(new Processing))
+ *     ->on('cancel', from: MyEnum::Pending, to: MyEnum::Cancelled)
+ *     ->transition(from: MyEnum::Processing, to: MyEnum::Complete)
+ *     ->final(MyEnum::Complete, MyEnum::Cancelled)
+ *     ->build();
  */
 class StateMachineBuilder
 {
-    /**
-     * @var array<int|string, list<BackedEnum>>
-     */
+    /** @var array<int|string, list<BackedEnum>> */
     private array $transitions = [];
 
-    /**
-     * @var list<BackedEnum>
-     */
+    /** @var list<BackedEnum> */
     private array $finalStates = [];
 
-    /**
-     * @var array<int|string, array<int|string, list<Closure>>>
-     */
+    /** @var array<int|string, array<int|string, list<Closure>>> */
     private array $guards = [];
 
-    /**
-     * @var list<array{name: string, from: BackedEnum, to: ?BackedEnum, guards: list<Closure>, do: ?Closure}>
-     */
+    /** @var list<array{name: string, from: BackedEnum, to: ?BackedEnum, guards: list<Closure>, action: ?Closure}> */
     private array $operationDefs = [];
-
-    private ?int $currentOperationIndex = null;
-
-    private ?BackedEnum $currentFromState = null;
-
-    /**
-     * @var list<BackedEnum>
-     */
-    private array $lastToStates = [];
 
     /** @var class-string<BackedEnum>|null */
     private ?string $enumClass = null;
 
+    private ?BackedEnum $initialState = null;
+
     /**
-     * Define the source state for transitions
+     * Define the initial state for the state machine
      */
-    public function from(BackedEnum $state): self
+    public function initial(BackedEnum $state): self
     {
         $this->trackEnumClass($state);
+        $this->initialState = $state;
 
-        if (in_array($state, $this->finalStates, true)) {
+        return $this;
+    }
+
+    /**
+     * Define a named operation
+     *
+     * @param  Closure|list<Closure>|null  $guard
+     */
+    public function on(
+        string $name,
+        BackedEnum $from,
+        ?BackedEnum $to = null,
+        Closure|array|null $guard = null,
+        ?Closure $action = null,
+    ): self {
+        $this->trackEnumClass($from);
+
+        if ($to !== null) {
+            $this->trackEnumClass($to);
+        }
+
+        if (in_array($from, $this->finalStates, true)) {
             throw new InvalidArgumentException(
-                "Cannot define outgoing transitions from final state {$state->value}"
+                "Cannot define operations from final state {$from->value}"
             );
         }
 
-        $this->currentFromState = $state;
-        $this->currentOperationIndex = null;
-        $this->lastToStates = [];
-
-        if (! isset($this->transitions[$state->value])) {
-            $this->transitions[$state->value] = [];
-        }
-
-        return $this;
-    }
-
-    /**
-     * Define target states for the current source state
-     */
-    public function to(BackedEnum ...$states): self
-    {
-        $from = $this->currentFromState;
-
-        if ($from === null) {
-            throw new InvalidArgumentException('Must call from() before to()');
-        }
-
-        if ($this->currentOperationIndex !== null) {
-            if (count($states) !== 1) {
-                throw new InvalidArgumentException('Operations accept exactly one target state');
+        $fromValue = $from->value;
+        foreach ($this->operationDefs as $def) {
+            if ($def['from']->value === $fromValue && $def['name'] === $name) {
+                throw new InvalidArgumentException(
+                    "Duplicate operation '{$name}' for state {$fromValue}"
+                );
             }
-
-            $this->operationDefs[$this->currentOperationIndex]['to'] = $states[0];
-
-            $this->trackEnumClass($states[0]);
-
-            if (! in_array($states[0], $this->transitions[$from->value], true)) {
-                $this->transitions[$from->value][] = $states[0];
-            }
-
-            $this->lastToStates = [$states[0]];
-
-            return $this;
         }
 
-        $this->lastToStates = [];
-
-        foreach ($states as $state) {
-            $this->trackEnumClass($state);
-
-            if (! in_array($state, $this->transitions[$from->value], true)) {
-                $this->transitions[$from->value][] = $state;
-            }
-
-            $this->lastToStates[] = $state;
+        if (! isset($this->transitions[$fromValue])) {
+            $this->transitions[$fromValue] = [];
         }
 
-        return $this;
-    }
-
-    public function guard(Closure $guard): self
-    {
-        $from = $this->currentFromState;
-
-        if ($this->currentOperationIndex !== null) {
-            if ($from === null) {
-                throw new InvalidArgumentException('Must call from() before guard()');
-            }
-
-            $this->operationDefs[$this->currentOperationIndex]['guards'][] = $guard;
-
-            return $this;
+        if ($to !== null && ! in_array($to, $this->transitions[$fromValue], true)) {
+            $this->transitions[$fromValue][] = $to;
         }
 
-        if ($from === null || $this->lastToStates === []) {
-            throw new InvalidArgumentException('Must call from()->to() before guard()');
-        }
-
-        foreach ($this->lastToStates as $to) {
-            $this->guards[$from->value][$to->value][] = $guard;
-        }
-
-        return $this;
-    }
-
-    /**
-     * Define a named operation under the current from() state
-     */
-    public function on(string $name): self
-    {
-        if ($this->currentFromState === null) {
-            throw new InvalidArgumentException('Must call from() before on()');
-        }
-
-        $this->lastToStates = [];
+        $guards = match (true) {
+            $guard instanceof Closure => [$guard],
+            is_array($guard) => $guard,
+            default => [],
+        };
 
         $this->operationDefs[] = [
             'name' => $name,
-            'from' => $this->currentFromState,
-            'to' => null,
-            'guards' => [],
-            'do' => null,
+            'from' => $from,
+            'to' => $to,
+            'guards' => $guards,
+            'action' => $action,
         ];
-        $this->currentOperationIndex = array_key_last($this->operationDefs);
 
         return $this;
     }
 
     /**
-     * Attach a side-effect closure to the current operation
+     * Define a direct transition between states
+     *
+     * @param  Closure|list<Closure>|null  $guard
      */
-    public function do(Closure $action): self
-    {
-        if ($this->currentOperationIndex === null) {
-            throw new InvalidArgumentException('Must call on() before do()');
+    public function transition(
+        BackedEnum $from,
+        BackedEnum $to,
+        Closure|array|null $guard = null,
+    ): self {
+        $this->trackEnumClass($from);
+        $this->trackEnumClass($to);
+
+        if (in_array($from, $this->finalStates, true)) {
+            throw new InvalidArgumentException(
+                "Cannot define transitions from final state {$from->value}"
+            );
         }
 
-        $this->operationDefs[$this->currentOperationIndex]['do'] = $action;
+        if (! isset($this->transitions[$from->value])) {
+            $this->transitions[$from->value] = [];
+        }
+
+        if (! in_array($to, $this->transitions[$from->value], true)) {
+            $this->transitions[$from->value][] = $to;
+        }
+
+        if ($guard !== null) {
+            $guards = $guard instanceof Closure ? [$guard] : $guard;
+            foreach ($guards as $g) {
+                $this->guards[$from->value][$to->value][] = $g;
+            }
+        }
 
         return $this;
     }
@@ -227,11 +192,11 @@ class StateMachineBuilder
                 from: $def['from'],
                 to: $def['to'],
                 guards: $def['guards'],
-                do: $def['do'],
+                action: $def['action'],
             );
         }
 
-        return new StateMachine($resolvedClass, $this->transitions, $this->finalStates, $this->guards, $operations);
+        return new StateMachine($resolvedClass, $this->transitions, $this->finalStates, $this->guards, $operations, $this->initialState);
     }
 
     private function trackEnumClass(BackedEnum $state): void

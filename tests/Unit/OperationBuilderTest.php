@@ -5,44 +5,33 @@ declare(strict_types=1);
 use Machina\Operation;
 use Tests\TestState;
 
-it('requires from() before on()', function () {
-    machina()->on('test');
-})->throws(InvalidArgumentException::class, 'Must call from() before on()');
-
-it('requires on() before do()', function () {
-    machina()->from(TestState::Pending)->do(fn () => null);
-})->throws(InvalidArgumentException::class, 'Must call on() before do()');
-
-it('registers transition in graph when operation has to()', function () {
+it('registers transition in graph when operation has to', function () {
     $machine = machina()
-        ->from(TestState::Pending)
-            ->on('start')->to(TestState::Processing)
+        ->on('start', from: TestState::Pending, to: TestState::Processing)
         ->final(TestState::Completed)
         ->build(TestState::class);
 
     expect($machine->getTransitions(TestState::Pending))->toContain(TestState::Processing);
 });
 
-it('creates state-bound operation without to()', function () {
+it('creates state-bound operation without to', function () {
     $machine = machina()
-        ->from(TestState::Pending)
-            ->on('notify')->do(fn () => null)
-            ->on('start')->to(TestState::Processing)
+        ->on('notify', from: TestState::Pending, action: fn () => null)
+        ->on('start', from: TestState::Pending, to: TestState::Processing)
         ->build(TestState::class);
 
     $op = $machine->findOperation(TestState::Pending, 'notify');
 
     expect($op)->toBeInstanceOf(Operation::class);
     expect($op->to)->toBeNull();
-    expect($op->do)->not->toBeNull();
+    expect($op->action)->not->toBeNull();
 });
 
-it('attaches guard to operation when after on()', function () {
+it('attaches guard to operation', function () {
     $guard = fn () => true;
 
     $machine = machina()
-        ->from(TestState::Pending)
-            ->on('start')->to(TestState::Processing)->guard($guard)
+        ->on('start', from: TestState::Pending, to: TestState::Processing, guard: $guard)
         ->build(TestState::class);
 
     $op = $machine->findOperation(TestState::Pending, 'start');
@@ -52,9 +41,8 @@ it('attaches guard to operation when after on()', function () {
 
 it('supports multiple operations on the same from state', function () {
     $machine = machina()
-        ->from(TestState::Pending)
-            ->on('start')->to(TestState::Processing)
-            ->on('cancel')->to(TestState::Cancelled)
+        ->on('start', from: TestState::Pending, to: TestState::Processing)
+        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled)
         ->build(TestState::class);
 
     expect($machine->getOperations(TestState::Pending))->toHaveCount(2);
@@ -62,18 +50,41 @@ it('supports multiple operations on the same from state', function () {
     expect($machine->findOperation(TestState::Pending, 'cancel'))->not->toBeNull();
 });
 
-it('keeps backward compat for from()->to()->guard() without operations', function () {
+it('rejects duplicate operation names on the same from state', function () {
+    machina()
+        ->on('start', from: TestState::Pending, to: TestState::Processing)
+        ->on('start', from: TestState::Pending, to: TestState::Cancelled);
+})->throws(InvalidArgumentException::class, "Duplicate operation 'start' for state pending");
+
+it('allows same operation name on different from states', function () {
     $machine = machina()
-        ->from(TestState::Pending)->to(TestState::Processing)
-            ->guard(fn () => false)
+        ->on('cancel', from: TestState::Pending, to: TestState::Cancelled)
+        ->on('cancel', from: TestState::Processing, to: TestState::Cancelled)
         ->build(TestState::class);
 
-    expect($machine->canTransition(TestState::Pending, TestState::Processing))->toBeFalse();
-    expect($machine->getOperations(TestState::Pending))->toBe([]);
+    expect($machine->findOperation(TestState::Pending, 'cancel'))->not->toBeNull();
+    expect($machine->findOperation(TestState::Processing, 'cancel'))->not->toBeNull();
 });
 
-it('requires exactly one target state for operations', function () {
-    machina()
-        ->from(TestState::Pending)
-            ->on('start')->to(TestState::Processing, TestState::Completed);
-})->throws(InvalidArgumentException::class, 'Operations accept exactly one target state');
+it('attaches action to operation', function () {
+    $actionFn = fn () => null;
+
+    $machine = machina()
+        ->on('start', from: TestState::Pending, to: TestState::Processing, action: $actionFn)
+        ->build(TestState::class);
+
+    $op = $machine->findOperation(TestState::Pending, 'start');
+
+    expect($op->action)->toBe($actionFn);
+});
+
+it('accepts guard as array of closures', function () {
+    $machine = machina()
+        ->on('start', from: TestState::Pending, to: TestState::Processing,
+            guard: [fn () => true, fn () => false])
+        ->build(TestState::class);
+
+    $op = $machine->findOperation(TestState::Pending, 'start');
+
+    expect($op->guards)->toHaveCount(2);
+});

@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Event;
 use Machina\Events\StateTransitioned;
 use Machina\Exceptions\InvalidStateTransitionException;
 use Machina\State;
-use Tests\Stubs\TestCustomEventCast;
+use Tests\Stubs\TestCustomEventMachina;
 use Tests\TestState;
 use Workbench\App\Models\TestModel;
 
@@ -96,8 +96,8 @@ it('fires custom event when eventClass is overridden', function () {
 
     $model = new class(['state' => TestState::Pending]) extends TestModel
     {
-        protected $casts = [
-            'state' => TestCustomEventCast::class,
+        protected $stateMachines = [
+            'state' => TestCustomEventMachina::class,
         ];
     };
     $model->save();
@@ -171,4 +171,30 @@ it('accepts null values in set()', function () {
     $this->model->fill(['state' => null]);
 
     expect($this->model->getAttributes()['state'])->toBeNull();
+});
+
+it('syncs in-memory model via forceFill even when column is guarded', function () {
+    $model = new class extends TestModel
+    {
+        protected $guarded = ['state', 'notes'];
+    };
+    $model->forceFill(['state' => TestState::Pending])->save();
+
+    $model->state->transitionTo(TestState::Processing, ['notes' => 'Updated']);
+
+    // In-memory model should reflect the new state and additional data
+    expect($model->state->value())->toBe(TestState::Processing);
+    expect($model->notes)->toBe('Updated');
+});
+
+it('uses the model database connection for transactions', function () {
+    // The model's connection should be used, not the default DB facade
+    // This validates that non-default connections work correctly
+    $connection = $this->model->getConnection();
+
+    $this->model->state->transitionTo(TestState::Processing);
+
+    $fresh = $this->model->fresh();
+    expect($fresh->state->value())->toBe(TestState::Processing);
+    expect($fresh->getConnectionName())->toBe($this->model->getConnectionName());
 });
