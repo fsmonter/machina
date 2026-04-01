@@ -95,7 +95,10 @@ class State implements Stringable
      */
     public function __call(string $method, array $arguments): mixed
     {
-        if (str_starts_with($method, 'can')) {
+        $isCanCheck = preg_match('/^can[A-Z]/', $method)
+            && ! $this->stateMachine()->findOperation($this->value, $method);
+
+        if ($isCanCheck) {
             return $this->canSend(lcfirst(substr($method, 3)));
         }
 

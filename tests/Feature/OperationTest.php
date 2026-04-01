@@ -99,6 +99,20 @@ it('throws for undefined operation', function () {
         ->toThrow(InvalidStateTransitionException::class, 'not defined for current state');
 });
 
+it('does not confuse operations starting with "can" as canSend checks', function () {
+    $model = createOperationModel();
+
+    $model->state->cancel();
+
+    expect($model->fresh()->state->current())->toBe(TestState::Cancelled);
+});
+
+it('checks canSend for operations starting with "can" via canCancel()', function () {
+    $model = createOperationModel();
+
+    expect($model->state->canCancel())->toBeTrue();
+});
+
 it('throws for operation on wrong state', function () {
     $model = createOperationModel();
 
